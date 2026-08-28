@@ -67,6 +67,49 @@ export function computeSpendByCategory(
   return Array.from(totals.values()).sort((a, b) => b.total - a.total);
 }
 
+export type Timeframe = "week" | "month" | "all";
+
+// Start-of-range cutoff (ms since epoch) for a timeframe pill, or undefined
+// for "all time" (no lower bound).
+export function timeframeSinceMs(tf: Timeframe, now: number): number | undefined {
+  if (tf === "all") return undefined;
+  if (tf === "week") return now - 7 * 86400000;
+  const d = new Date(now);
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+const MADE_KINDS = new Set(["cash", "gift", "trade", "investment"]);
+const MADE_LABELS: Record<string, string> = {
+  cash: "Cash",
+  gift: "Gifts",
+  trade: "Day Trading",
+  investment: "Investing",
+};
+
+export interface KindTotal {
+  kind: string;
+  label: string;
+  total: number;
+}
+
+// "Money made" - positive inflows only (deposits, gifts, and trading/
+// investment gains), excluding transfers between your own accounts and
+// manual balance adjustments, which aren't really "made" money.
+export function computeMadeByKind(txns: AccountTransaction[], sinceMs?: number): KindTotal[] {
+  const totals = new Map<string, number>();
+  txns
+    .filter((t) => t.amount > 0 && MADE_KINDS.has(t.kind))
+    .filter((t) => (sinceMs ? new Date(t.occurred_at).getTime() >= sinceMs : true))
+    .forEach((t) => {
+      totals.set(t.kind, (totals.get(t.kind) ?? 0) + t.amount);
+    });
+  return Array.from(totals.entries())
+    .map(([kind, total]) => ({ kind, label: MADE_LABELS[kind] ?? kind, total }))
+    .sort((a, b) => b.total - a.total);
+}
+
 export function spendInRange(expenses: Expense[], fromMs: number, toMs: number) {
   return expenses
     .filter((e) => {

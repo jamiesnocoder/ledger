@@ -19,21 +19,24 @@ export function Sheet({
 }) {
   const [mounted, setMounted] = useState(open);
   const [visible, setVisible] = useState(false);
-  const [prevOpen, setPrevOpen] = useState(open);
 
-  // Adjust state during render when `open` changes, rather than in an
-  // effect - keeps the mount/close transition synchronous with the prop.
-  if (open !== prevOpen) {
-    setPrevOpen(open);
-    if (open) setMounted(true);
-    else setVisible(false);
-  }
-
+  // Drive mount/visible entirely from this single effect, keyed on `open`.
+  // (A previous version tried to flip `mounted` during render - comparing
+  // `open` to a `prevOpen` state - to avoid an extra commit. That pattern
+  // breaks under React Strict Mode's double-render-for-purity check: the
+  // render-phase update could get applied against a stale intermediate
+  // pass and `mounted` would bounce back to false right after being set,
+  // so the sheet never actually mounted into the DOM. Doing it here in an
+  // effect is one commit slower but is not order-dependent on how many
+  // times React chooses to invoke the render function.)
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- must mount before the enter transition (rAF below) can run against a real DOM node.
+      setMounted(true);
       const raf = requestAnimationFrame(() => setVisible(true));
       return () => cancelAnimationFrame(raf);
     }
+    setVisible(false);
     const t = setTimeout(() => setMounted(false), 240);
     return () => clearTimeout(t);
   }, [open]);

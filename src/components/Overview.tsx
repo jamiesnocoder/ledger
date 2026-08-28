@@ -2,20 +2,18 @@
 
 import { useRef, useState } from "react";
 import { DonutChart, type DonutSlice } from "@/components/DonutChart";
-import { BarChart } from "@/components/BarChart";
-import { LineChart } from "@/components/LineChart";
-import { ActivityList, type FeedItem } from "@/components/ActivityList";
-import { Icon } from "@/components/icons";
+import { ActivityList, ActivityRow, type FeedItem } from "@/components/ActivityList";
 import {
   computeBalances,
-  computeHistory,
+  computeMadeByKind,
   computeSpendByCategory,
-  dailySpend,
-  spendInRange,
+  timeframeSinceMs,
+  type Timeframe,
 } from "@/lib/compute";
 import { deleteAccountTransaction, deleteExpense, deleteTransfer } from "@/lib/mutations";
 import { useToast } from "@/components/Toast";
 import { fmtMoney } from "@/lib/format";
+import { Icon } from "@/components/icons";
 import type { Account, AccountTransaction, Expense, ExpenseCategory } from "@/lib/types";
 
 const KIND_ICON: Record<string, keyof typeof Icon> = {
@@ -29,8 +27,11 @@ const KIND_ICON: Record<string, keyof typeof Icon> = {
   expense: "bag",
 };
 
-const RANGE_DAYS = 7;
-const CHART_HEIGHT = 336;
+// Every slice/dot in this app renders the same tone - proportions and taps
+// (not color) are what tell accounts, categories, or sources apart.
+const MONO = "--ink";
+const CHART_HEIGHT = 400;
+const PAGES = ["Net worth", "Spent", "Made"] as const;
 
 export function Overview({
   accounts,
@@ -50,29 +51,36 @@ export function Overview({
   const toast = useToast();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [chartPage, setChartPage] = useState(0);
-  const [range, setRange] = useState<"week" | "month">("week");
+  const [timeframe, setTimeframe] = useState<Timeframe>("month");
   const [now] = useState(() => Date.now());
 
   const { byAccount, total } = computeBalances(accounts, transactions);
+  const sinceMs = timeframeSinceMs(timeframe, now);
 
-  const slices: DonutSlice[] = accounts.map((a) => ({
+  const netWorthSlices: DonutSlice[] = accounts.map((a) => ({
     id: a.id,
     label: a.name,
     value: byAccount[a.id] ?? 0,
-    colorVar: `--acc-${a.id}`,
+    colorVar: MONO,
   }));
 
-  const dayMs = 86400000;
-  const monthStart = (() => {
-    const d = new Date(now);
-    d.setDate(1);
-    d.setHours(0, 0, 0, 0);
-    return d.getTime();
-  })();
-  const weekTotal = spendInRange(expenses, now - 7 * dayMs, now + dayMs);
-  const bars = dailySpend(expenses, RANGE_DAYS);
-  const barLabels = bars.map((b) => new Date(b.ts).toLocaleDateString("en-GB", { weekday: "short" }).slice(0, 1));
-  const byCategory = computeSpendByCategory(expenses, categories, range === "week" ? now - 7 * dayMs : monthStart);
+  const spendByCategory = computeSpendByCategory(expenses, categories, sinceMs);
+  const spentSlices: DonutSlice[] = spendByCategory.map((c) => ({
+    id: c.category?.id ?? "uncategorized",
+    label: c.category?.name ?? "Uncategorized",
+    value: c.total,
+    colorVar: MONO,
+  }));
+  const spentTotal = spendByCategory.reduce((s, c) => s + c.total, 0);
+
+  const madeByKind = computeMadeByKind(transactions, sinceMs);
+  const madeSlices: DonutSlice[] = madeByKind.map((k) => ({
+    id: k.kind,
+    label: k.label,
+    value: k.total,
+    colorVar: MONO,
+  }));
+  const madeTotal = madeByKind.reduce((s, k) => s + k.total, 0);
 
   function goToChart(i: number) {
     setChartPage(i);
@@ -101,7 +109,7 @@ export function Overview({
         signed: true,
         ts: t.occurred_at,
         iconKey: KIND_ICON[t.kind] ?? "tag",
-        colorVar: `--acc-${t.account_id}`,
+        colorVar: "--text-2",
       };
     }),
     ...expenses
@@ -121,7 +129,9 @@ export function Overview({
       }),
   ]
     .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
-    .slice(0, 12);
+    .slice(0, 30);
+
+  const groups = groupByDay(feed);
 
   async function handleDelete(id: string) {
     try {
@@ -149,35 +159,24 @@ export function Overview({
           className="flex overflow-x-auto"
           style={{ height: CHART_HEIGHT, scrollSnapType: "x mandatory", scrollbarWidth: "none" }}
         >
-          <div
-            className="w-full shrink-0 flex flex-col items-center justify-center"
-            style={{ scrollSnapAlign: "start" }}
-          >
-            <DonutChart slices={slices} total={total} />
+          <div className="w-full shrink-0 flex flex-col items-center justify-center" style={{ scrollSnapAlign: "start" }}>
+            <DonutChart slices={netWorthSlices} total={total} totalLabel="Net worth" />
           </div>
-          <div
-            className="w-full shrink-0 flex flex-col items-center justify-center"
-            style={{ scrollSnapAlign: "start" }}
-          >
-            <div className="w-full">
-              <div className="text-[12px] font-bold uppercase tracking-wide" style={{ color: "var(--text-3)" }}>
-                Spent this week
-              </div>
-              <div className="num text-[32px] font-extrabold tracking-tight mt-1" style={{ letterSpacing: "-0.02em" }}>
-                {fmtMoney(weekTotal)}
-              </div>
-              <div className="mt-4">
-                <BarChart points={bars} labels={barLabels} />
-              </div>
-            </div>
+          <div className="w-full shrink-0 flex flex-col items-center justify-center" style={{ scrollSnapAlign: "start" }}>
+            <TimeframePills value={timeframe} onChange={setTimeframe} />
+            <DonutChart slices={spentSlices} total={spentTotal} totalLabel="Spent" />
+          </div>
+          <div className="w-full shrink-0 flex flex-col items-center justify-center" style={{ scrollSnapAlign: "start" }}>
+            <TimeframePills value={timeframe} onChange={setTimeframe} />
+            <DonutChart slices={madeSlices} total={madeTotal} totalLabel="Made" />
           </div>
         </div>
 
         <div className="flex justify-center gap-1.5 mt-3">
-          {[0, 1].map((i) => (
+          {PAGES.map((label, i) => (
             <button
-              key={i}
-              aria-label={i === 0 ? "Show net worth" : "Show spending"}
+              key={label}
+              aria-label={`Show ${label}`}
               onClick={() => goToChart(i)}
               className="rounded-full"
               style={{
@@ -191,110 +190,95 @@ export function Overview({
         </div>
       </section>
 
-      <section className="mt-6">
-        <div className="grid grid-cols-2 gap-2.5">
-          {accounts.map((a) => {
-            const hist = computeHistory(transactions, a.id);
-            return (
-              <div
-                key={a.id}
-                className="relative rounded-2xl p-3.5"
-                style={{ border: "1px solid var(--border)", background: "var(--surface)" }}
-              >
-                <button
-                  type="button"
-                  onClick={() => onOpenQuickAdd(a.id)}
-                  aria-label={`Add to ${a.name}`}
-                  className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center"
-                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-2)" }}
-                >
-                  <Icon.plus size={12} />
-                </button>
-                <div className="flex items-center gap-1.5 mb-2.5">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: a.color }} />
-                  <span className="text-[12px] font-bold truncate" style={{ color: "var(--text-2)" }}>
-                    {a.name}
-                  </span>
-                </div>
-                <div className="num text-[18px] font-extrabold tracking-tight">{fmtMoney(byAccount[a.id] ?? 0)}</div>
-                <div className="mt-2" style={{ height: 30 }}>
-                  <LineChart points={hist} height={30} colorVar={`--acc-${a.id}`} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      <section className="mt-7 rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)", background: "var(--surface)" }}>
+        {accounts.map((a, i) => (
+          <button
+            key={a.id}
+            type="button"
+            onClick={() => onOpenQuickAdd(a.id)}
+            className="w-full flex items-center justify-between px-4 py-3.5 text-left"
+            style={{ borderBottom: i < accounts.length - 1 ? "1px solid var(--border)" : "none" }}
+          >
+            <span className="text-[13.5px] font-semibold">{a.name}</span>
+            <span className="num text-[13.5px] font-semibold">{fmtMoney(byAccount[a.id] ?? 0)}</span>
+          </button>
+        ))}
       </section>
 
       <section className="mt-7">
-        <div className="flex items-center justify-between mb-2.5">
-          <div className="text-[12.5px] font-bold uppercase tracking-wide" style={{ color: "var(--text-3)" }}>
-            By Category
-          </div>
-          <div className="flex rounded-lg p-0.5 gap-0.5" style={{ background: "var(--surface-2)" }}>
-            {(["week", "month"] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => setRange(r)}
-                className="px-2.5 py-1 rounded-md text-[10.5px] font-bold capitalize"
-                style={{
-                  background: range === r ? "var(--surface)" : "transparent",
-                  color: range === r ? "var(--text)" : "var(--text-3)",
-                }}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
-        </div>
-        {byCategory.length === 0 ? (
-          <div className="text-[13px] text-center py-4" style={{ color: "var(--text-3)" }}>
-            Nothing logged in this range yet.
-          </div>
+        {groups.length === 0 ? (
+          <ActivityList items={[]} emptyHint="Tap the + button to add your first entry." onDelete={handleDelete} />
         ) : (
-          <div className="flex flex-col gap-2">
-            {byCategory.map((c) => {
-              const IconComp = Icon[(c.category?.icon as keyof typeof Icon) ?? "tag"];
-              const max = byCategory[0].total;
-              return (
-                <div key={c.category?.id ?? "none"} className="flex items-center gap-3">
-                  <span
-                    className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                    style={{ background: "var(--surface-2)", color: "var(--text-2)" }}
-                  >
-                    <IconComp size={15} />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between text-[12.5px] font-semibold mb-1">
-                      <span className="truncate">{c.category?.name ?? "Uncategorized"}</span>
-                      <span className="num shrink-0 ml-2">{fmtMoney(c.total)}</span>
-                    </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${Math.max((c.total / max) * 100, 4)}%`, background: "var(--ink)" }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          groups.map((g) => (
+            <div key={g.key}>
+              <div
+                className="text-[11.5px] font-bold uppercase tracking-wide mt-5 mb-1 first:mt-0"
+                style={{ color: "var(--text-3)" }}
+              >
+                {g.label}
+              </div>
+              {g.items.map((item) => (
+                <ActivityRow key={item.id} item={item} onDelete={handleDelete} />
+              ))}
+            </div>
+          ))
         )}
-      </section>
-
-      <section className="mt-7">
-        <div className="text-[12.5px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--text-3)" }}>
-          Recent Activity
-        </div>
-        <ActivityList
-          items={feed}
-          emptyHint="Tap the + button to add your first entry."
-          onDelete={handleDelete}
-        />
       </section>
     </div>
   );
+}
+
+function TimeframePills({ value, onChange }: { value: Timeframe; onChange: (t: Timeframe) => void }) {
+  return (
+    <div className="flex rounded-lg p-0.5 gap-0.5 mb-4" style={{ background: "var(--surface-2)" }}>
+      {(["week", "month", "all"] as const).map((tf) => (
+        <button
+          key={tf}
+          type="button"
+          onClick={() => onChange(tf)}
+          className="px-3.5 py-1.5 rounded-md text-[11px] font-bold"
+          style={{
+            background: value === tf ? "var(--surface)" : "transparent",
+            color: value === tf ? "var(--text)" : "var(--text-3)",
+          }}
+        >
+          {tf === "all" ? "All time" : tf === "week" ? "Week" : "Month"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+interface DayGroup {
+  key: string;
+  label: string;
+  items: FeedItem[];
+}
+
+function groupByDay(items: FeedItem[]): DayGroup[] {
+  const groups: DayGroup[] = [];
+  items.forEach((item) => {
+    const d = new Date(item.ts);
+    const key = d.toDateString();
+    let group = groups[groups.length - 1]?.key === key ? groups[groups.length - 1] : undefined;
+    if (!group) {
+      group = { key, label: groups.length === 0 ? "Latest" : dayLabel(d), items: [] };
+      groups.push(group);
+    }
+    group.items.push(item);
+  });
+  return groups;
+}
+
+function dayLabel(d: Date) {
+  const startOfDay = (x: Date) => {
+    const c = new Date(x);
+    c.setHours(0, 0, 0, 0);
+    return c.getTime();
+  };
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+  if (diffDays < 7) return d.toLocaleDateString("en-GB", { weekday: "long" });
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function labelForKind(kind: string) {

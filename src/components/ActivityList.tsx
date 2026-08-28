@@ -43,13 +43,13 @@ export function ActivityList({
   return (
     <div>
       {items.map((item) => (
-        <Row key={item.id} item={item} onDelete={onDelete} />
+        <ActivityRow key={item.id} item={item} onDelete={onDelete} />
       ))}
     </div>
   );
 }
 
-function Row({ item, onDelete }: { item: FeedItem; onDelete?: (id: string) => void }) {
+export function ActivityRow({ item, onDelete }: { item: FeedItem; onDelete?: (id: string) => void }) {
   const [confirming, setConfirming] = useState(false);
   const IconComp = Icon[item.iconKey] ?? Icon.tag;
 

@@ -11,8 +11,6 @@ import { updateAccount, addCategory, updateCategory, signOut } from "@/lib/mutat
 import { useToast } from "@/components/Toast";
 import type { AppData } from "@/lib/data";
 
-const SWATCHES = ["#0a0a09", "#2b2a28", "#454340", "#5c5b57", "#726f6a", "#918f89", "#b6b4ad", "#d8d6cf"];
-
 export function Settings({ data }: { data: AppData }) {
   const router = useRouter();
   const toast = useToast();
@@ -25,9 +23,9 @@ export function Settings({ data }: { data: AppData }) {
     router.refresh();
   }
 
-  async function saveAccount(id: string, name: string, color: string) {
+  async function saveAccount(id: string, name: string) {
     try {
-      await updateAccount(id, { name, color });
+      await updateAccount(id, { name });
       toast("Account updated");
       setEditingAccount(null);
       refresh();
@@ -96,7 +94,6 @@ export function Settings({ data }: { data: AppData }) {
                 key={a.id}
                 id={a.id}
                 name={a.name}
-                color={a.color}
                 balance={byAccount[a.id] ?? 0}
                 editing={editingAccount === a.id}
                 onEdit={() => setEditingAccount(a.id)}
@@ -106,7 +103,7 @@ export function Settings({ data }: { data: AppData }) {
             ))}
           </div>
           <div className="text-[12px] mt-2.5" style={{ color: "var(--text-3)" }}>
-            To set a starting balance, use the + button on that account&apos;s card on the main page.
+            To set a starting balance, tap that account in the list on the main page.
           </div>
         </Section>
 
@@ -205,7 +202,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function AccountRow({
   id,
   name,
-  color,
   balance,
   editing,
   onEdit,
@@ -214,15 +210,13 @@ function AccountRow({
 }: {
   id: string;
   name: string;
-  color: string;
   balance: number;
   editing: boolean;
   onEdit: () => void;
   onCancel: () => void;
-  onSave: (id: string, name: string, color: string) => void;
+  onSave: (id: string, name: string) => void;
 }) {
   const [localName, setLocalName] = useState(name);
-  const [localColor, setLocalColor] = useState(color);
 
   if (!editing) {
     return (
@@ -231,7 +225,6 @@ function AccountRow({
         className="flex items-center gap-3 rounded-xl px-3.5 py-3 text-left"
         style={{ border: "1px solid var(--border)", background: "var(--surface)" }}
       >
-        <span className="w-3 h-3 rounded-full shrink-0" style={{ background: color }} />
         <span className="text-[13.5px] font-semibold flex-1">{name}</span>
         <span className="num text-[13.5px] font-semibold" style={{ color: "var(--text-2)" }}>
           {fmtMoney(balance)}
@@ -245,20 +238,9 @@ function AccountRow({
       <input
         value={localName}
         onChange={(e) => setLocalName(e.target.value)}
-        className="w-full rounded-lg px-3 py-2 text-[13.5px] font-semibold outline-none mb-2.5"
+        className="w-full rounded-lg px-3 py-2 text-[13.5px] font-semibold outline-none mb-3"
         style={{ background: "var(--surface-2)", border: "1px solid var(--border-strong)", color: "var(--text)" }}
       />
-      <div className="flex gap-1.5 mb-3">
-        {SWATCHES.map((sw) => (
-          <button
-            key={sw}
-            onClick={() => setLocalColor(sw)}
-            aria-label={sw}
-            className="w-6 h-6 rounded-full shrink-0"
-            style={{ background: sw, outline: localColor === sw ? "2px solid var(--text)" : "none", outlineOffset: 2 }}
-          />
-        ))}
-      </div>
       <div className="flex gap-2">
         <button
           onClick={onCancel}
@@ -268,7 +250,7 @@ function AccountRow({
           Cancel
         </button>
         <button
-          onClick={() => onSave(id, localName.trim() || name, localColor)}
+          onClick={() => onSave(id, localName.trim() || name)}
           className="flex-1 py-2 rounded-lg font-bold text-[12.5px]"
           style={{ background: "var(--ink)", color: "var(--ink-inverse)" }}
         >

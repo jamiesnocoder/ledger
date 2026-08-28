@@ -146,7 +146,6 @@ function AccountGrid({
             className="flex items-center gap-2 rounded-xl px-3 py-2.5"
             style={{ border: `1px solid ${isActive ? "var(--ink)" : "var(--border-strong)"}`, background: "var(--surface-2)" }}
           >
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: a.color }} />
             <span className="text-[13px] font-bold truncate">{a.name}</span>
           </button>
         );

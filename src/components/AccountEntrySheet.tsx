@@ -133,10 +133,9 @@ export function AccountEntrySheet({
                   className="flex items-center gap-2 rounded-xl px-3 py-2.5"
                   style={{
                     border: `1px solid ${active ? "var(--ink)" : "var(--border-strong)"}`,
-                    background: active ? "var(--surface-2)" : "var(--surface-2)",
+                    background: "var(--surface-2)",
                   }}
                 >
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: a.color }} />
                   <span className="text-[13px] font-bold truncate">{a.name}</span>
                 </button>
               );
@@ -149,7 +148,6 @@ export function AccountEntrySheet({
         <div className="mt-4">
           <FieldLabel>Account</FieldLabel>
           <div className="flex items-center gap-2.5 rounded-xl px-3.5 py-3" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: accountMeta.color }} />
             <div>
               <div className="text-[13.5px] font-bold">{accountMeta.name}</div>
               <div className="text-[11px]" style={{ color: "var(--text-3)" }}>
