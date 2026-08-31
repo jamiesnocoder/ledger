@@ -5,8 +5,11 @@
 create extension if not exists "pgcrypto";
 
 -- ---------------------------------------------------------------------------
--- accounts: the 4 balance buckets (Cash, Bank, Investment, Day Trading).
--- Rows are user-editable (name/color/order) from Settings; id stays fixed.
+-- accounts: balance buckets. New users are seeded with 4 defaults (Cash,
+-- Bank, Investment, Day Trading), but the set isn't fixed - users can
+-- rename, add, or archive accounts freely from Settings. "daytrading" and
+-- "investment" stay special-cased by id in the app (dedicated P&L entry
+-- flows) when they exist; everything else is a plain pickable balance.
 -- ---------------------------------------------------------------------------
 create table if not exists accounts (
   id text not null,
@@ -15,6 +18,9 @@ create table if not exists accounts (
   color text not null,
   sort_order int not null default 0,
   archived boolean not null default false,
+  -- Balance carried in from before this account was tracked here - balances
+  -- and history both start from this instead of zero.
+  starting_balance numeric(14, 2) not null default 0,
   created_at timestamptz not null default now(),
   primary key (user_id, id)
 );

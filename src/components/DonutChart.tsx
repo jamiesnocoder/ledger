@@ -7,14 +7,21 @@ export interface DonutSlice {
   id: string;
   label: string;
   value: number;
-  colorVar: string;
 }
 
 const SIZE = 220;
-const STROKE = 26;
+const STROKE = 40;
 const R = (SIZE - STROKE) / 2;
 const C = 2 * Math.PI * R;
-const GAP_DEG = 2.2; // visual surface gap between slices
+const GAP_DEG = 1.4; // visual surface gap between slices
+
+// Shades of --ink (black in light mode, white in dark mode) mixed toward
+// --surface, cycled by position - slices read apart by lightness while
+// staying inside the app's monochrome palette.
+const SHADE_MIX_PERCENTS = [100, 78, 60, 45, 32, 22, 14, 8];
+function shadeFor(index: number) {
+  return `color-mix(in srgb, var(--ink) ${SHADE_MIX_PERCENTS[index % SHADE_MIX_PERCENTS.length]}%, var(--surface))`;
+}
 
 export function DonutChart({
   slices,
@@ -28,6 +35,11 @@ export function DonutChart({
   const [active, setActive] = useState<string | null>(null);
   const positive = slices.filter((s) => s.value > 0);
   const sum = positive.reduce((s, x) => s + x.value, 0);
+
+  // Color is assigned from the full slice list (not just the positive ones)
+  // so a slice keeps the same color in the legend even when its arc is
+  // temporarily hidden at zero value.
+  const colorById = new Map(slices.map((s, i) => [s.id, shadeFor(i)]));
 
   const arcs = positive.reduce<Array<DonutSlice & { startDeg: number; deg: number; fraction: number }>>(
     (acc, s) => {
@@ -83,11 +95,11 @@ export function DonutChart({
                 cy={SIZE / 2}
                 r={R}
                 fill="none"
-                stroke={`var(${a.colorVar})`}
+                stroke={colorById.get(a.id)}
                 strokeWidth={isActive ? STROKE + 4 : STROKE}
                 strokeDasharray={`${arcLen} ${C - arcLen}`}
                 strokeDashoffset={-offset}
-                strokeLinecap="round"
+                strokeLinecap="butt"
                 opacity={isDim ? 0.35 : 1}
                 style={{
                   cursor: "pointer",
@@ -100,7 +112,7 @@ export function DonutChart({
             );
           })}
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 pointer-events-none">
           <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--text-3)" }}>
             {activeSlice ? activeSlice.label : totalLabel}
           </div>
@@ -115,25 +127,27 @@ export function DonutChart({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 w-full">
+      <div className="grid grid-cols-2 gap-x-7 gap-y-3.5 w-full px-2">
         {slices.map((s) => (
           <button
             key={s.id}
             onPointerEnter={() => setActive(s.id)}
             onPointerLeave={() => setActive(null)}
             onClick={() => setActive(active === s.id ? null : s.id)}
-            className="flex items-center gap-2 text-left rounded-lg px-1.5 py-1 -mx-1.5"
+            className="flex items-start gap-2 text-left rounded-lg px-1.5 py-1.5 -mx-1.5"
             style={{ background: active === s.id ? "var(--surface-2)" : "transparent" }}
           >
             <span
-              className="w-2.5 h-2.5 rounded-full shrink-0"
-              style={{ background: `var(${s.colorVar})`, opacity: s.value > 0 ? 1 : 0.35 }}
+              className="w-2.5 h-2.5 rounded-full shrink-0 mt-[3px]"
+              style={{ background: colorById.get(s.id), opacity: s.value > 0 ? 1 : 0.35 }}
             />
-            <span className="text-[12.5px] font-semibold truncate flex-1" style={{ color: "var(--text-2)" }}>
-              {s.label}
-            </span>
-            <span className="num text-[12.5px] font-semibold tabular-nums" style={{ color: "var(--text)" }}>
-              {fmtMoney(s.value)}
+            <span className="flex-1 min-w-0">
+              <span className="block text-[12.5px] font-semibold leading-snug" style={{ color: "var(--text-2)" }}>
+                {s.label}
+              </span>
+              <span className="num block text-[12.5px] font-semibold tabular-nums" style={{ color: "var(--text)" }}>
+                {fmtMoney(s.value)}
+              </span>
             </span>
           </button>
         ))}

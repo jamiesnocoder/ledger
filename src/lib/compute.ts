@@ -1,5 +1,12 @@
 import type { Account, AccountTransaction, Expense, ExpenseCategory } from "@/lib/types";
 
+// "daytrading" and "investment" are reserved for their dedicated P&L flows -
+// every other account (the defaults plus anything a user adds) is a normal
+// pickable balance for cash-style deposits/withdrawals and expense payment.
+export function pickableAccounts(accounts: Account[]): Account[] {
+  return accounts.filter((a) => a.id !== "daytrading" && a.id !== "investment");
+}
+
 export interface Balances {
   byAccount: Record<string, number>;
   total: number;
@@ -7,7 +14,7 @@ export interface Balances {
 
 export function computeBalances(accounts: Account[], txns: AccountTransaction[]): Balances {
   const byAccount: Record<string, number> = {};
-  accounts.forEach((a) => (byAccount[a.id] = 0));
+  accounts.forEach((a) => (byAccount[a.id] = a.starting_balance ?? 0));
   txns.forEach((t) => {
     if (byAccount[t.account_id] !== undefined) byAccount[t.account_id] += t.amount;
   });
@@ -21,17 +28,19 @@ export interface HistoryPoint {
 }
 
 // Cumulative running-balance points, for one account or the overall total
-// (accountId omitted). Assumes txns is already sorted ascending by time,
-// or sorts a copy if not.
+// (accountId omitted). startingValue seeds the running total so history
+// begins from an account's starting balance instead of zero. Assumes txns
+// is already sorted ascending by time, or sorts a copy if not.
 export function computeHistory(
   txns: AccountTransaction[],
-  accountId?: string
+  accountId?: string,
+  startingValue = 0
 ): HistoryPoint[] {
   const list = txns
     .filter((t) => (accountId ? t.account_id === accountId : true))
     .slice()
     .sort((a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime());
-  let running = 0;
+  let running = startingValue;
   return list.map((t) => {
     running += t.amount;
     return { ts: new Date(t.occurred_at).getTime(), value: running };
@@ -138,5 +147,29 @@ export function dailySpend(expenses: Expense[], days: number): HistoryPoint[] {
     const bucket = buckets.find((b) => b.ts === dayStart.getTime());
     if (bucket) bucket.value += e.amount;
   });
+  return buckets;
+}
+
+// Daily "money made" totals for the last N days (oldest first) - the same
+// shape as dailySpend, for the Made trend bar chart.
+export function dailyMade(txns: AccountTransaction[], days: number): HistoryPoint[] {
+  const now = new Date();
+  now.setHours(23, 59, 59, 999);
+  const buckets: HistoryPoint[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    d.setHours(0, 0, 0, 0);
+    buckets.push({ ts: d.getTime(), value: 0 });
+  }
+  txns
+    .filter((t) => t.amount > 0 && MADE_KINDS.has(t.kind))
+    .forEach((t) => {
+      const ts = new Date(t.occurred_at).getTime();
+      const dayStart = new Date(ts);
+      dayStart.setHours(0, 0, 0, 0);
+      const bucket = buckets.find((b) => b.ts === dayStart.getTime());
+      if (bucket) bucket.value += t.amount;
+    });
   return buckets;
 }

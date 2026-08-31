@@ -22,6 +22,11 @@ export function fmtDate(iso: string) {
   });
 }
 
+// Compact "19 Aug" form for chart axis labels - no year, unlike fmtDate.
+export function fmtAxisDate(ts: number) {
+  return new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
 export function fmtRelative(iso: string) {
   const d = new Date(iso);
   const now = new Date();
@@ -33,7 +38,14 @@ export function fmtRelative(iso: string) {
 }
 
 export function todayInputValue() {
-  const d = new Date();
+  return dateInputValue(new Date().toISOString());
+}
+
+// Local-timezone yyyy-mm-dd for an existing ISO timestamp, for prefilling a
+// <input type="date"> when editing an entry - same conversion as
+// todayInputValue but for an arbitrary date instead of "now".
+export function dateInputValue(iso: string) {
+  const d = new Date(iso);
   const tz = d.getTimezoneOffset();
   const local = new Date(d.getTime() - tz * 60000);
   return local.toISOString().slice(0, 10);

@@ -93,7 +93,7 @@ export function AccountEntrySheet({
       {config.signMode !== "positive" && config.signLabels && (
         <div className="mt-4">
           <FieldLabel>{config.signMode === "pnl" ? "Result" : "Type"}</FieldLabel>
-          <div className="flex rounded-xl p-1 gap-1" style={{ background: "var(--surface-2)", border: "1px solid var(--border-strong)" }}>
+          <div className="flex rounded-xl p-1 gap-1" style={{ background: "var(--surface-2)" }}>
             {config.signLabels.map((label, i) => {
               const val = i === 0 ? 1 : -1;
               const active = sign === val;
@@ -147,7 +147,7 @@ export function AccountEntrySheet({
       {config.fixedAccountId && accountMeta && (
         <div className="mt-4">
           <FieldLabel>Account</FieldLabel>
-          <div className="flex items-center gap-2.5 rounded-xl px-3.5 py-3" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+          <div className="flex items-center gap-2.5 rounded-xl px-3.5 py-3" style={{ background: "var(--surface-2)" }}>
             <div>
               <div className="text-[13.5px] font-bold">{accountMeta.name}</div>
               <div className="text-[11px]" style={{ color: "var(--text-3)" }}>

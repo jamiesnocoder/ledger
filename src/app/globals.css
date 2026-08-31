@@ -1,57 +1,56 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 :root {
-  --bg: #f5f4f2;
-  --bg-plane: #ececea;
+  --bg: #f3f3f3;
+  --bg-plane: #f3f3f3;
   --surface: #ffffff;
-  --surface-2: #efeeec;
-  --border: rgba(10, 10, 8, 0.09);
-  --border-strong: rgba(10, 10, 8, 0.16);
-  --ink: #0a0a09;
-  --ink-inverse: #f5f4f2;
-  --text: #0a0a09;
-  --text-2: #5c5b57;
-  --text-3: #918f89;
-  --shadow: 0 1px 2px rgba(10, 10, 8, 0.04), 0 10px 28px -14px rgba(10, 10, 8, 0.22);
+  --surface-2: #f3f3f3;
+  --border: rgba(130, 130, 130, 0.35);
+  --border-strong: rgba(130, 130, 130, 0.5);
+  --ink: #000000;
+  --ink-inverse: #ffffff;
+  --text: #000000;
+  --text-2: #828282;
+  --text-3: rgba(130, 130, 130, 0.7);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 28px -14px rgba(0, 0, 0, 0.22);
   --radius-lg: 24px;
   --radius-md: 16px;
   --radius-sm: 11px;
-  --font-display: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0a0a09;
-    --bg-plane: #050505;
-    --surface: #171716;
-    --surface-2: #201f1e;
-    --border: rgba(255, 255, 255, 0.09);
-    --border-strong: rgba(255, 255, 255, 0.16);
-    --ink: #f5f4f2;
-    --ink-inverse: #0a0a09;
-    --text: #f5f4f2;
-    --text-2: #a8a6a0;
-    --text-3: #6b6964;
+    --bg: #000000;
+    --bg-plane: #000000;
+    --surface: #1a1a1a;
+    --surface-2: #000000;
+    --border: rgba(112, 112, 112, 0.35);
+    --border-strong: rgba(112, 112, 112, 0.5);
+    --ink: #ffffff;
+    --ink-inverse: #000000;
+    --text: #ffffff;
+    --text-2: #707070;
+    --text-3: rgba(112, 112, 112, 0.7);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 14px 32px -16px rgba(0, 0, 0, 0.6);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0a0a09;
-  --bg-plane: #050505;
-  --surface: #171716;
-  --surface-2: #201f1e;
-  --border: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --ink: #f5f4f2;
-  --ink-inverse: #0a0a09;
-  --text: #f5f4f2;
-  --text-2: #a8a6a0;
-  --text-3: #6b6964;
+  --bg: #000000;
+  --bg-plane: #000000;
+  --surface: #1a1a1a;
+  --surface-2: #000000;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --ink: #ffffff;
+  --ink-inverse: #000000;
+  --text: #ffffff;
+  --text-2: rgba(255, 255, 255, 0.6);
+  --text-3: rgba(255, 255, 255, 0.38);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 14px 32px -16px rgba(0, 0, 0, 0.6);
   color-scheme: dark;
 }
@@ -77,7 +76,12 @@ body {
 #shell {
   max-width: 480px;
   margin: 0 auto;
-  min-height: 100dvh;
+  /* A definite height (not min-height) so a page like Dashboard can fill it
+     with height:100% for its own internal scroll regions. This doesn't clip
+     other pages - overflow-y is left at its default (visible), so content
+     taller than this still flows past the box and the page scrolls, exactly
+     as it did with min-height before. */
+  height: 100dvh;
   background: var(--bg);
   position: relative;
   box-shadow: var(--shadow);
@@ -89,7 +93,7 @@ body {
     padding: 28px 12px;
   }
   #shell {
-    min-height: calc(100dvh - 56px);
+    height: calc(100dvh - 56px);
     border-radius: 32px;
   }
 }
@@ -105,6 +109,29 @@ button {
 input,
 select {
   font-family: inherit;
+}
+
+/* SVG <text> doesn't inherit the body font in most browsers by default -
+   chart axis labels and tooltips need this explicitly. */
+text {
+  font-family: var(--font-display);
+}
+
+/* Small inline brand mark (login screen, etc) - black tile in light theme,
+   white tile in dark, same swap pattern as the color tokens above. */
+.brand-mark {
+  background-image: url("/brand-mark-black.png");
+  background-size: cover;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand-mark {
+    background-image: url("/brand-mark-white.png");
+  }
+}
+
+:root[data-theme="dark"] .brand-mark {
+  background-image: url("/brand-mark-white.png");
 }
 
 ::selection {

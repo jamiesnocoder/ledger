@@ -35,8 +35,8 @@ export function ThemeToggle() {
     <button
       onClick={toggle}
       aria-label="Toggle theme"
-      className="w-9 h-9 rounded-xl border flex items-center justify-center shrink-0"
-      style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-2)" }}
+      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 active:scale-95"
+      style={{ background: "var(--surface)", color: "var(--text-2)", boxShadow: "var(--shadow)", transition: "transform .1s" }}
     >
       {theme === "dark" ? <Icon.sun /> : <Icon.moon />}
     </button>

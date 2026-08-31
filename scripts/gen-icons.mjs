@@ -1,44 +1,51 @@
 import sharp from "sharp";
-import { mkdirSync } from "fs";
+import { mkdirSync, copyFileSync } from "fs";
 
 mkdirSync("public/icons", { recursive: true });
 
-const INK = "#0a0a09";
-const MARK = "#f5f4f2";
+// Source: 1024x1024, black rounded-square tile with a white "L" mark,
+// transparent corners. Regular icons use it as-is (the rounded corners read
+// fine against any background); maskable icons need a full-bleed square
+// background instead, since the OS applies its own mask shape - composited
+// onto a solid black canvas here so nothing but the "L" itself is scaled
+// down into the safe zone.
+const SRC = "assets/logo/ledger-icon-black.png";
+const SRC_WHITE = "assets/logo/ledger-icon-white.png";
 
-function iconSvg({ size, pad }) {
-  const inner = size - pad * 2;
-  const s = inner / 192; // scale factor from a 192-unit design
-  const p = pad;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <rect width="${size}" height="${size}" fill="${INK}"/>
-    <g transform="translate(${p} ${p}) scale(${s})" stroke="${MARK}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none">
-      <polyline points="40,136 78,96 104,118 152,58"/>
-      <polyline points="120,58 152,58 152,90"/>
-    </g>
-    <circle cx="${p + 40 * s}" cy="${p + 136 * s}" r="${8 * s}" fill="${MARK}"/>
-    <circle cx="${p + 104 * s}" cy="${p + 118 * s}" r="${8 * s}" fill="${MARK}"/>
-  </svg>`;
+async function plain(name, size) {
+  await sharp(SRC).resize(size, size).png().toFile(`public/icons/${name}`);
+  console.log("wrote", name);
 }
 
-async function make(name, size, pad) {
-  await sharp(Buffer.from(iconSvg({ size, pad })))
+async function maskable(name, size) {
+  const inner = Math.round(size * 0.7); // safe-zone padding for circular/squircle crops
+  const iconBuf = await sharp(SRC).resize(inner, inner).toBuffer();
+  await sharp({ create: { width: size, height: size, channels: 4, background: "#000000" } })
+    .composite([{ input: iconBuf, gravity: "center" }])
     .png()
     .toFile(`public/icons/${name}`);
   console.log("wrote", name);
 }
 
 async function main() {
-  await make("icon-192.png", 192, 0);
-  await make("icon-512.png", 512, 0);
-  await make("maskable-192.png", 192, 28); // safe-zone padding for maskable
-  await make("maskable-512.png", 512, 74);
-  await make("apple-touch-icon.png", 180, 0);
+  await plain("icon-192.png", 192);
+  await plain("icon-512.png", 512);
+  await maskable("maskable-192.png", 192);
+  await maskable("maskable-512.png", 512);
+  await plain("apple-touch-icon.png", 180);
+  await plain("favicon.png", 64);
 
-  // favicon: small flat version
-  await sharp(Buffer.from(iconSvg({ size: 64, pad: 0 })))
-    .png()
-    .toFile("public/icons/favicon.png");
+  // Next.js file-convention icons (src/app/icon.png, apple-icon.png) mirror
+  // the same generated sizes.
+  copyFileSync("public/icons/icon-192.png", "src/app/icon.png");
+  copyFileSync("public/icons/apple-touch-icon.png", "src/app/apple-icon.png");
+  console.log("synced src/app/icon.png and apple-icon.png");
+
+  // Small inline brand marks (login screen, header) - black-tile for light
+  // theme, white-tile for dark, swapped via CSS in globals.css.
+  await sharp(SRC).resize(96, 96).png().toFile("public/brand-mark-black.png");
+  await sharp(SRC_WHITE).resize(96, 96).png().toFile("public/brand-mark-white.png");
+  console.log("wrote brand-mark-black.png, brand-mark-white.png");
 }
 
 main();

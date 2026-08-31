@@ -5,11 +5,10 @@ import { Sheet, FieldLabel, SubmitButton } from "@/components/Sheet";
 import { AmountDisplay, Keypad } from "@/components/Keypad";
 import { useToast } from "@/components/Toast";
 import { logExpense } from "@/lib/mutations";
+import { pickableAccounts } from "@/lib/compute";
 import { todayInputValue } from "@/lib/format";
 import { Icon } from "@/components/icons";
 import type { Account, ExpenseCategory } from "@/lib/types";
-
-type PaymentOption = "cash" | "bank" | "none";
 
 export function ExpenseSheet({
   accounts,
@@ -27,24 +26,25 @@ export function ExpenseSheet({
   const [amount, setAmount] = useState("");
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(categories[0]?.id ?? null);
-  const [payment, setPayment] = useState<PaymentOption>("cash");
+  // null = untracked (spending-only, no account balance affected)
+  const [payment, setPayment] = useState<string | null>(pickableAccounts(accounts)[0]?.id ?? null);
   const [date, setDate] = useState(todayInputValue());
   const [saving, setSaving] = useState(false);
   const toast = useToast();
 
+  const paymentOptions = [...pickableAccounts(accounts).map((a) => ({ id: a.id, label: a.name })), { id: null, label: "Untracked" }];
   const numeric = parseFloat(amount || "0");
 
   async function submit() {
     if (!numeric || numeric <= 0 || !title.trim()) return;
     setSaving(true);
     try {
-      const accountId = payment === "none" ? null : payment;
       await logExpense({
         title: title.trim(),
         amount: numeric,
         categoryId,
-        accountId,
-        paymentLabel: payment === "cash" ? "Cash" : payment === "bank" ? "Bank" : "Untracked",
+        accountId: payment,
+        paymentLabel: payment ? (accounts.find((a) => a.id === payment)?.name ?? "Account") : "Untracked",
         occurredAt: new Date(date + "T12:00:00").toISOString(),
       });
       toast("Expense added");
@@ -104,33 +104,26 @@ export function ExpenseSheet({
 
       <div className="mt-4">
         <FieldLabel>Payment</FieldLabel>
-        <div className="flex rounded-xl p-1 gap-1" style={{ background: "var(--surface-2)", border: "1px solid var(--border-strong)" }}>
-          {(
-            [
-              ["cash", accounts.find((a) => a.id === "cash")?.name ?? "Cash"],
-              ["bank", accounts.find((a) => a.id === "bank")?.name ?? "Bank"],
-              ["none", "Untracked"],
-            ] as const
-          ).map(([val, label]) => {
-            const active = payment === val;
+        <div className="flex flex-wrap gap-1.5">
+          {paymentOptions.map((opt) => {
+            const active = payment === opt.id;
             return (
               <button
-                key={val}
+                key={opt.id ?? "untracked"}
                 type="button"
-                onClick={() => setPayment(val)}
-                className="flex-1 py-2.5 rounded-lg text-[12px] font-bold truncate px-1"
+                onClick={() => setPayment(opt.id)}
+                className="px-3.5 py-2 rounded-lg text-[12px] font-bold"
                 style={{
-                  background: active ? "var(--surface)" : "transparent",
-                  color: active ? "var(--text)" : "var(--text-2)",
-                  boxShadow: active ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
+                  background: active ? "var(--ink)" : "var(--surface-2)",
+                  color: active ? "var(--ink-inverse)" : "var(--text-2)",
                 }}
               >
-                {label}
+                {opt.label}
               </button>
             );
           })}
         </div>
-        {payment === "none" && (
+        {payment === null && (
           <div className="text-[11px] mt-1.5" style={{ color: "var(--text-3)" }}>
             Won&apos;t affect any account balance — spending-only.
           </div>

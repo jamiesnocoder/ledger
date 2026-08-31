@@ -20,6 +20,7 @@ export interface Account {
   color: string;
   sort_order: number;
   archived: boolean;
+  starting_balance: number;
   created_at: string;
 }
 

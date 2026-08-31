@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { Wordmark } from "@/components/Wordmark";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,12 +42,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-[360px]">
-        <div className="flex items-center gap-2 mb-8 justify-center">
-          <span
-            className="w-8 h-8 rounded-lg"
-            style={{ background: "var(--ink)" }}
-          />
-          <span className="text-[20px] font-extrabold tracking-tight">Ledger</span>
+        <div className="flex items-center gap-2.5 mb-8 justify-center">
+          <span className="brand-mark w-8 h-8 rounded-lg shrink-0" />
+          <Wordmark size={20} />
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-3">
