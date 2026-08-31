@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getUsdToEurRate } from "@/lib/fx";
 import type { Account, AccountTransaction, Expense, ExpenseCategory } from "@/lib/types";
 
 export interface AppData {
@@ -6,6 +7,7 @@ export interface AppData {
   accountTransactions: AccountTransaction[];
   categories: ExpenseCategory[];
   expenses: Expense[];
+  usdToEur: number;
 }
 
 // Single fetch used by every page's Server Component - small dataset for a
@@ -13,7 +15,7 @@ export interface AppData {
 export async function loadAppData(): Promise<AppData> {
   const supabase = await getSupabaseServerClient();
 
-  const [accountsRes, txnsRes, categoriesRes, expensesRes] = await Promise.all([
+  const [accountsRes, txnsRes, categoriesRes, expensesRes, usdToEur] = await Promise.all([
     supabase.from("accounts").select("*").eq("archived", false).order("sort_order"),
     supabase
       .from("account_transactions")
@@ -25,6 +27,7 @@ export async function loadAppData(): Promise<AppData> {
       .eq("archived", false)
       .order("sort_order"),
     supabase.from("expenses").select("*").order("occurred_at", { ascending: false }),
+    getUsdToEurRate(),
   ]);
 
   return {
@@ -32,5 +35,6 @@ export async function loadAppData(): Promise<AppData> {
     accountTransactions: (txnsRes.data as AccountTransaction[]) ?? [],
     categories: (categoriesRes.data as ExpenseCategory[]) ?? [],
     expenses: (expensesRes.data as Expense[]) ?? [],
+    usdToEur,
   };
 }

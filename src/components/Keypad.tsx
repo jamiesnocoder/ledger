@@ -1,6 +1,9 @@
 "use client";
 
 import { Icon } from "@/components/icons";
+import type { Currency } from "@/lib/types";
+
+const CURRENCY_SYMBOL: Record<Currency, string> = { EUR: "€", USD: "$" };
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "back"];
 
@@ -43,12 +46,12 @@ export function Keypad({
   );
 }
 
-export function AmountDisplay({ value }: { value: string }) {
+export function AmountDisplay({ value, currency = "EUR" }: { value: string; currency?: Currency }) {
   const display = value === "" ? "0" : value;
   return (
     <div className="flex items-center justify-center gap-1.5 py-6">
       <span className="text-[30px] font-semibold num" style={{ color: "var(--text-3)" }}>
-        €
+        {CURRENCY_SYMBOL[currency]}
       </span>
       <span className="text-[46px] font-extrabold num tracking-tight" style={{ letterSpacing: "-0.02em" }}>
         {display}

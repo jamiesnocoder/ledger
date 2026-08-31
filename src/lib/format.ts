@@ -1,17 +1,20 @@
-const MONEY_FMT = new Intl.NumberFormat("es-ES", {
-  style: "currency",
-  currency: "EUR",
-  maximumFractionDigits: 2,
-});
+import type { Currency } from "@/lib/types";
 
-export function fmtMoney(n: number) {
+const MONEY_FMT: Record<Currency, Intl.NumberFormat> = {
+  EUR: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }),
+  USD: new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }),
+};
+
+export function fmtMoney(n: number, currency: Currency = "EUR") {
+  const fmt = MONEY_FMT[currency] ?? MONEY_FMT.EUR;
   const v = Math.round((n + Number.EPSILON) * 100) / 100;
   const sign = v < 0 ? "-" : "";
-  return sign + MONEY_FMT.format(Math.abs(v));
+  return sign + fmt.format(Math.abs(v));
 }
 
-export function fmtSigned(n: number) {
-  return (n > 0 ? "+" : n < 0 ? "−" : "") + MONEY_FMT.format(Math.abs(n));
+export function fmtSigned(n: number, currency: Currency = "EUR") {
+  const fmt = MONEY_FMT[currency] ?? MONEY_FMT.EUR;
+  return (n > 0 ? "+" : n < 0 ? "−" : "") + fmt.format(Math.abs(n));
 }
 
 export function fmtDate(iso: string) {

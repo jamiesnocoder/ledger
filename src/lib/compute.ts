@@ -1,4 +1,4 @@
-import type { Account, AccountTransaction, Expense, ExpenseCategory } from "@/lib/types";
+import type { Account, AccountTransaction, Currency, Expense, ExpenseCategory } from "@/lib/types";
 
 // "daytrading" and "investment" are reserved for their dedicated P&L flows -
 // every other account (the defaults plus anything a user adds) is a normal
@@ -7,18 +7,25 @@ export function pickableAccounts(accounts: Account[]): Account[] {
   return accounts.filter((a) => a.id !== "daytrading" && a.id !== "investment");
 }
 
+// Only Net Worth aggregates across accounts into one figure, so only there
+// does a USD account's amount get converted - everywhere else (that
+// account's own balance, its transactions) stays in its own currency.
+export function toEur(amount: number, currency: Currency | undefined, usdToEur: number): number {
+  return currency === "USD" ? amount * usdToEur : amount;
+}
+
 export interface Balances {
   byAccount: Record<string, number>;
   total: number;
 }
 
-export function computeBalances(accounts: Account[], txns: AccountTransaction[]): Balances {
+export function computeBalances(accounts: Account[], txns: AccountTransaction[], usdToEur: number): Balances {
   const byAccount: Record<string, number> = {};
   accounts.forEach((a) => (byAccount[a.id] = a.starting_balance ?? 0));
   txns.forEach((t) => {
     if (byAccount[t.account_id] !== undefined) byAccount[t.account_id] += t.amount;
   });
-  const total = Object.values(byAccount).reduce((s, v) => s + v, 0);
+  const total = accounts.reduce((s, a) => s + toEur(byAccount[a.id] ?? 0, a.currency, usdToEur), 0);
   return { byAccount, total };
 }
 
@@ -29,12 +36,16 @@ export interface HistoryPoint {
 
 // Cumulative running-balance points, for one account or the overall total
 // (accountId omitted). startingValue seeds the running total so history
-// begins from an account's starting balance instead of zero. Assumes txns
-// is already sorted ascending by time, or sorts a copy if not.
+// begins from an account's starting balance instead of zero. currencyById +
+// usdToEur convert each transaction's amount before accumulating, so a
+// group spanning EUR and USD accounts (Net Worth) still sums correctly.
+// Assumes txns is already sorted ascending by time, or sorts a copy if not.
 export function computeHistory(
   txns: AccountTransaction[],
   accountId?: string,
-  startingValue = 0
+  startingValue = 0,
+  currencyById?: Record<string, Currency>,
+  usdToEur = 1
 ): HistoryPoint[] {
   const list = txns
     .filter((t) => (accountId ? t.account_id === accountId : true))
@@ -42,7 +53,7 @@ export function computeHistory(
     .sort((a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime());
   let running = startingValue;
   return list.map((t) => {
-    running += t.amount;
+    running += toEur(t.amount, currencyById?.[t.account_id], usdToEur);
     return { ts: new Date(t.occurred_at).getTime(), value: running };
   });
 }

@@ -15,10 +15,11 @@ import {
   dailySpend,
   pickableAccounts,
   timeframeSinceMs,
+  toEur,
   type Timeframe,
 } from "@/lib/compute";
 import { Icon } from "@/components/icons";
-import type { Account, AccountTransaction, Expense, ExpenseCategory } from "@/lib/types";
+import type { Account, AccountTransaction, Currency, Expense, ExpenseCategory } from "@/lib/types";
 
 const KIND_ICON: Record<string, keyof typeof Icon> = {
   cash: "cash",
@@ -70,12 +71,14 @@ export function Overview({
   transactions,
   expenses,
   categories,
+  usdToEur,
   onChanged,
 }: {
   accounts: Account[];
   transactions: AccountTransaction[];
   expenses: Expense[];
   categories: ExpenseCategory[];
+  usdToEur: number;
   onChanged: () => void;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -98,13 +101,18 @@ export function Overview({
     el.scrollLeft = el.clientWidth;
   }, []);
 
-  const { byAccount, total } = computeBalances(accounts, transactions);
+  const { byAccount, total } = computeBalances(accounts, transactions, usdToEur);
   const sinceMs = timeframeSinceMs(timeframe, now);
+  const currencyById: Record<string, Currency> = {};
+  accounts.forEach((a) => (currencyById[a.id] = a.currency));
 
+  // Net worth mixes currencies, so slice values (and the proportions they
+  // drive) are normalized to EUR here - everywhere else an account's own
+  // balance stays in its own currency.
   const netWorthSlices: DonutSlice[] = accounts.map((a) => ({
     id: a.id,
     label: a.name,
-    value: byAccount[a.id] ?? 0,
+    value: toEur(byAccount[a.id] ?? 0, a.currency, usdToEur),
   }));
 
   const spendByCategory = computeSpendByCategory(expenses, categories, sinceMs);
@@ -125,7 +133,12 @@ export function Overview({
 
   // Net worth trend: cumulative running balance for the selected group,
   // seeded with that group's starting balance(s), always full history.
-  const startingBalanceFor = (id: string) => accounts.find((a) => a.id === id)?.starting_balance ?? 0;
+  // Starting balances (like the transactions below) are converted to EUR
+  // wherever a group can span both currencies.
+  const startingBalanceInEurFor = (id: string) => {
+    const a = accounts.find((x) => x.id === id);
+    return a ? toEur(a.starting_balance ?? 0, a.currency, usdToEur) : 0;
+  };
   const netWorthGroupTxns =
     netWorthGroup === "total"
       ? transactions
@@ -136,13 +149,13 @@ export function Overview({
           : transactions.filter((t) => t.account_id === "investment");
   const netWorthGroupStart =
     netWorthGroup === "total"
-      ? accounts.reduce((s, a) => s + (a.starting_balance ?? 0), 0)
+      ? accounts.reduce((s, a) => s + toEur(a.starting_balance ?? 0, a.currency, usdToEur), 0)
       : netWorthGroup === "cash"
-        ? pickableAccounts(accounts).reduce((s, a) => s + (a.starting_balance ?? 0), 0)
+        ? pickableAccounts(accounts).reduce((s, a) => s + toEur(a.starting_balance ?? 0, a.currency, usdToEur), 0)
         : netWorthGroup === "daytrading"
-          ? startingBalanceFor("daytrading")
-          : startingBalanceFor("investment");
-  const netWorthHistory = computeHistory(netWorthGroupTxns, undefined, netWorthGroupStart);
+          ? startingBalanceInEurFor("daytrading")
+          : startingBalanceInEurFor("investment");
+  const netWorthHistory = computeHistory(netWorthGroupTxns, undefined, netWorthGroupStart, currencyById, usdToEur);
 
   // Day Trading/Investing tabs only appear once those accounts exist.
   const netWorthGroups: { id: NetWorthGroup; label: string }[] = [
@@ -187,6 +200,7 @@ export function Overview({
       meta: acc?.name ?? t.account_id,
       amount: t.amount,
       signed: true,
+      currency: acc?.currency ?? "EUR",
       ts: t.occurred_at,
       iconKey: KIND_ICON[t.kind] ?? "tag",
       colorVar: "--text-2",
@@ -195,12 +209,14 @@ export function Overview({
 
   function expenseToFeedItem(e: Expense): FeedItem {
     const cat = categories.find((c) => c.id === e.category_id);
+    const acc = accounts.find((a) => a.id === e.account_id);
     return {
       id: e.id,
       title: e.title,
       meta: cat?.name ?? "Uncategorized",
       amount: e.amount,
       signed: false,
+      currency: acc?.currency ?? "EUR",
       ts: e.occurred_at,
       iconKey: (cat?.icon as keyof typeof Icon) ?? "tag",
       colorVar: "--text-2",

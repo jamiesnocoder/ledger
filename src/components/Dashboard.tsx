@@ -80,7 +80,7 @@ export function Dashboard({ data }: { data: AppData }) {
     else setEntryKey(key);
   }
 
-  const { byAccount } = computeBalances(data.accounts, data.accountTransactions);
+  const { byAccount } = computeBalances(data.accounts, data.accountTransactions, data.usdToEur);
   const configs = entryConfigs(data.accounts);
   const hasDayTrading = data.accounts.some((a) => a.id === "daytrading");
   const hasInvestment = data.accounts.some((a) => a.id === "investment");
@@ -120,6 +120,7 @@ export function Dashboard({ data }: { data: AppData }) {
         transactions={data.accountTransactions}
         expenses={data.expenses}
         categories={data.categories}
+        usdToEur={data.usdToEur}
         onChanged={onChanged}
       />
 

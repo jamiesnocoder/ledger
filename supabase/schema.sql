@@ -21,6 +21,9 @@ create table if not exists accounts (
   -- Balance carried in from before this account was tracked here - balances
   -- and history both start from this instead of zero.
   starting_balance numeric(14, 2) not null default 0,
+  -- This account's own currency. Balances/transactions for it are always in
+  -- this currency; only the Net Worth aggregate converts USD back to EUR.
+  currency text not null default 'EUR' check (currency in ('EUR', 'USD')),
   created_at timestamptz not null default now(),
   primary key (user_id, id)
 );

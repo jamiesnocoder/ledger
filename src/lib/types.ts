@@ -3,6 +3,8 @@
 
 export type AccountId = "cash" | "bank" | "investment" | "daytrading";
 
+export type Currency = "EUR" | "USD";
+
 export type TxnKind =
   | "cash"
   | "gift"
@@ -21,6 +23,7 @@ export interface Account {
   sort_order: number;
   archived: boolean;
   starting_balance: number;
+  currency: Currency;
   created_at: string;
 }
 

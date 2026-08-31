@@ -31,6 +31,10 @@ export function TransferSheet({
   const toast = useToast();
 
   const numeric = parseFloat(amount || "0");
+  const fromAccount = accounts.find((a) => a.id === from);
+  const toAccount = accounts.find((a) => a.id === to);
+  const fromCurrency = fromAccount?.currency ?? "EUR";
+  const crossCurrency = !!fromAccount && !!toAccount && fromAccount.currency !== toAccount.currency;
 
   function pickFrom(id: string) {
     setFrom(id);
@@ -62,7 +66,7 @@ export function TransferSheet({
 
   return (
     <Sheet open={open} onClose={onClose} title="Transfer" subtitle="Move money between your own accounts — your total balance won't change.">
-      <AmountDisplay value={amount} />
+      <AmountDisplay value={amount} currency={fromCurrency} />
       <Keypad value={amount} onChange={setAmount} />
 
       <div className="mt-4">
@@ -115,8 +119,13 @@ export function TransferSheet({
       </div>
 
       <div className="text-[12px] mt-3" style={{ color: "var(--text-3)" }}>
-        Available in {accounts.find((a) => a.id === from)?.name}: {fmtMoney(balances[from] ?? 0)}
+        Available in {fromAccount?.name}: {fmtMoney(balances[from] ?? 0, fromCurrency)}
       </div>
+      {crossCurrency && (
+        <div className="text-[12px] mt-1.5" style={{ color: "var(--text-3)" }}>
+          {fromAccount?.name} is {fromAccount?.currency} and {toAccount?.name} is {toAccount?.currency} — the amount moves as-is, with no currency conversion.
+        </div>
+      )}
 
       <SubmitButton onClick={submit} disabled={!numeric || numeric <= 0 || from === to || saving}>
         {saving ? "Saving…" : "Transfer"}

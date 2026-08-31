@@ -1,7 +1,7 @@
 "use client";
 
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import type { AccountId, TxnKind } from "@/lib/types";
+import type { AccountId, Currency, TxnKind } from "@/lib/types";
 
 export async function addAccountTransaction(args: {
   accountId: AccountId | string;
@@ -162,7 +162,7 @@ export async function updateExpenseEntry(
 
 export async function updateAccount(
   id: string,
-  patch: Partial<{ name: string; color: string; sort_order: number; archived: boolean; starting_balance: number }>
+  patch: Partial<{ name: string; color: string; sort_order: number; archived: boolean; starting_balance: number; currency: Currency }>
 ) {
   const supabase = getSupabaseBrowserClient();
   const { error } = await supabase.from("accounts").update(patch).eq("id", id);

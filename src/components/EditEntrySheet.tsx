@@ -96,6 +96,9 @@ export function EditEntrySheet({
 
   const numeric = parseFloat(amount || "0");
   const meta = target.kind === "txn" ? (TXN_KIND_META[target.txn.kind] ?? { title: "Entry", signMode: "toggle" as const }) : null;
+  const activeAccountId =
+    target.kind === "expense" ? accountId : target.kind === "transfer" ? target.fromId : (meta?.fixedAccountId ?? accountId ?? target.txn.account_id);
+  const activeCurrency = accounts.find((a) => a.id === activeAccountId)?.currency ?? "EUR";
 
   async function submit() {
     if (!target || !numeric || numeric <= 0) return;
@@ -166,7 +169,7 @@ export function EditEntrySheet({
           : undefined
       }
     >
-      <AmountDisplay value={amount} />
+      <AmountDisplay value={amount} currency={activeCurrency} />
       <Keypad value={amount} onChange={setAmount} />
 
       {target.kind === "expense" && (

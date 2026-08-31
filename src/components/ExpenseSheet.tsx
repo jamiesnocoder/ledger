@@ -34,6 +34,7 @@ export function ExpenseSheet({
 
   const paymentOptions = [...pickableAccounts(accounts).map((a) => ({ id: a.id, label: a.name })), { id: null, label: "Untracked" }];
   const numeric = parseFloat(amount || "0");
+  const paymentCurrency = accounts.find((a) => a.id === payment)?.currency ?? "EUR";
 
   async function submit() {
     if (!numeric || numeric <= 0 || !title.trim()) return;
@@ -61,7 +62,7 @@ export function ExpenseSheet({
 
   return (
     <Sheet open={open} onClose={onClose} title="Add Expense" subtitle="What did you spend on?">
-      <AmountDisplay value={amount} />
+      <AmountDisplay value={amount} currency={paymentCurrency} />
       <Keypad value={amount} onChange={setAmount} />
 
       <div className="mt-4">

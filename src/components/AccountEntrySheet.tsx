@@ -87,7 +87,7 @@ export function AccountEntrySheet({
       title={config.title}
       subtitle={config.subtitle}
     >
-      <AmountDisplay value={amount} />
+      <AmountDisplay value={amount} currency={accountMeta?.currency ?? "EUR"} />
       <Keypad value={amount} onChange={setAmount} />
 
       {config.signMode !== "positive" && config.signLabels && (

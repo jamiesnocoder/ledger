@@ -2,6 +2,7 @@
 
 import { Icon } from "@/components/icons";
 import { fmtRelative, fmtSigned, fmtMoney } from "@/lib/format";
+import type { Currency } from "@/lib/types";
 
 export interface FeedItem {
   id: string;
@@ -9,6 +10,7 @@ export interface FeedItem {
   meta: string;
   amount: number; // signed for account txns, positive magnitude for expenses
   signed: boolean; // whether to render +/- coloring
+  currency: Currency; // the underlying account's own currency
   ts: string;
   iconKey: keyof typeof Icon;
   colorVar: string;
@@ -77,7 +79,7 @@ export function ActivityRow({
         </div>
       </div>
       <div className="num text-[14px] font-semibold shrink-0" style={{ color: "var(--text)" }}>
-        {item.signed ? fmtSigned(item.amount) : fmtMoney(item.amount)}
+        {item.signed ? fmtSigned(item.amount, item.currency) : fmtMoney(item.amount, item.currency)}
       </div>
     </button>
   );

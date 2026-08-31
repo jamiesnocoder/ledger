@@ -10,6 +10,7 @@ import { fmtMoney } from "@/lib/format";
 import { updateAccount, addAccount, archiveAccount, addCategory, updateCategory, signOut } from "@/lib/mutations";
 import { useToast } from "@/components/Toast";
 import type { AppData } from "@/lib/data";
+import type { Currency } from "@/lib/types";
 
 export function Settings({ data }: { data: AppData }) {
   const router = useRouter();
@@ -20,15 +21,15 @@ export function Settings({ data }: { data: AppData }) {
   const [newCategory, setNewCategory] = useState("");
   const [addingCategory, setAddingCategory] = useState(false);
 
-  const { byAccount } = computeBalances(data.accounts, data.accountTransactions);
+  const { byAccount } = computeBalances(data.accounts, data.accountTransactions, data.usdToEur);
 
   function refresh() {
     router.refresh();
   }
 
-  async function saveAccount(id: string, name: string, startingBalance: number) {
+  async function saveAccount(id: string, name: string, startingBalance: number, currency: Currency) {
     try {
-      await updateAccount(id, { name, starting_balance: startingBalance });
+      await updateAccount(id, { name, starting_balance: startingBalance, currency });
       toast("Account updated");
       setEditingAccount(null);
       refresh();
@@ -126,6 +127,7 @@ export function Settings({ data }: { data: AppData }) {
                 id={a.id}
                 name={a.name}
                 startingBalance={a.starting_balance ?? 0}
+                currency={a.currency ?? "EUR"}
                 editing={editingAccount === a.id}
                 onEdit={() => setEditingAccount(a.id)}
                 onCancel={() => setEditingAccount(null)}
@@ -135,7 +137,7 @@ export function Settings({ data }: { data: AppData }) {
             ))}
           </div>
           <div className="text-[12px] mt-2.5" style={{ color: "var(--text-3)" }}>
-            Starting balance is the amount this account held before you started tracking it here — balances and trend graphs count up from it instead of zero.
+            Starting balance is the amount this account held before you started tracking it here — balances and trend graphs count up from it instead of zero. USD accounts are converted to EUR for the Net Worth total using the current exchange rate.
           </div>
 
           {addingAccount ? (
@@ -264,6 +266,7 @@ function AccountRow({
   id,
   name,
   startingBalance,
+  currency,
   editing,
   onEdit,
   onCancel,
@@ -273,14 +276,16 @@ function AccountRow({
   id: string;
   name: string;
   startingBalance: number;
+  currency: Currency;
   editing: boolean;
   onEdit: () => void;
   onCancel: () => void;
-  onSave: (id: string, name: string, startingBalance: number) => void;
+  onSave: (id: string, name: string, startingBalance: number, currency: Currency) => void;
   onRemove: (id: string) => void;
 }) {
   const [localName, setLocalName] = useState(name);
   const [localBalance, setLocalBalance] = useState(String(startingBalance));
+  const [localCurrency, setLocalCurrency] = useState<Currency>(currency);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   if (!editing) {
@@ -292,7 +297,7 @@ function AccountRow({
       >
         <span className="text-[13.5px] font-semibold">{name}</span>
         <span className="num text-[13.5px] font-semibold" style={{ color: "var(--text-2)" }}>
-          {fmtMoney(startingBalance)}
+          {fmtMoney(startingBalance, currency)}
         </span>
       </button>
     );
@@ -300,7 +305,7 @@ function AccountRow({
 
   function submit() {
     const parsed = Number.parseFloat(localBalance.replace(",", "."));
-    onSave(id, localName.trim() || name, Number.isFinite(parsed) ? parsed : startingBalance);
+    onSave(id, localName.trim() || name, Number.isFinite(parsed) ? parsed : startingBalance, localCurrency);
   }
 
   return (
@@ -318,9 +323,28 @@ function AccountRow({
         value={localBalance}
         onChange={(e) => setLocalBalance(e.target.value)}
         inputMode="decimal"
-        className="num w-full rounded-lg px-3 py-2 text-[13.5px] font-semibold outline-none mt-1 mb-3"
+        className="num w-full rounded-lg px-3 py-2 text-[13.5px] font-semibold outline-none mt-1 mb-2"
         style={{ background: "var(--surface-2)", border: "1px solid var(--border-strong)", color: "var(--text)" }}
       />
+      <label className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--text-3)" }}>
+        Currency
+      </label>
+      <div className="flex rounded-lg p-0.5 gap-0.5 mt-1 mb-3" style={{ background: "var(--surface-2)" }}>
+        {(["EUR", "USD"] as const).map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => setLocalCurrency(c)}
+            className="flex-1 py-1.5 rounded-md text-[12px] font-bold"
+            style={{
+              background: localCurrency === c ? "var(--surface)" : "transparent",
+              color: localCurrency === c ? "var(--text)" : "var(--text-3)",
+            }}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
       <div className="flex gap-2">
         <button
           onClick={onCancel}
