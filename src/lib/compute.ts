@@ -45,17 +45,20 @@ export function computeHistory(
   accountId?: string,
   startingValue = 0,
   currencyById?: Record<string, Currency>,
-  usdToEur = 1
+  usdToEur = 1,
+  startTs?: number
 ): HistoryPoint[] {
   const list = txns
     .filter((t) => (accountId ? t.account_id === accountId : true))
     .slice()
     .sort((a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime());
   let running = startingValue;
-  return list.map((t) => {
+  const points: HistoryPoint[] = startTs !== undefined ? [{ ts: startTs, value: running }] : [];
+  list.forEach((t) => {
     running += toEur(t.amount, currencyById?.[t.account_id], usdToEur);
-    return { ts: new Date(t.occurred_at).getTime(), value: running };
+    points.push({ ts: new Date(t.occurred_at).getTime(), value: running });
   });
+  return points;
 }
 
 export interface CategorySpend {

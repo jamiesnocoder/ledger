@@ -139,6 +139,12 @@ export function Overview({
     const a = accounts.find((x) => x.id === id);
     return a ? toEur(a.starting_balance ?? 0, a.currency, usdToEur) : 0;
   };
+  const netWorthGroupAccounts =
+    netWorthGroup === "total"
+      ? accounts
+      : netWorthGroup === "cash"
+        ? pickableAccounts(accounts)
+        : accounts.filter((a) => a.id === netWorthGroup);
   const netWorthGroupTxns =
     netWorthGroup === "total"
       ? transactions
@@ -155,7 +161,21 @@ export function Overview({
         : netWorthGroup === "daytrading"
           ? startingBalanceInEurFor("daytrading")
           : startingBalanceInEurFor("investment");
-  const netWorthHistory = computeHistory(netWorthGroupTxns, undefined, netWorthGroupStart, currencyById, usdToEur);
+  // Anchors the trend line's first point to the group's earliest account
+  // creation date, seeded with the starting balance - so with zeroBaseline
+  // off below, that point lands at the bottom-left corner (x/y axis
+  // crossing) instead of forced-zero floating it above the true start.
+  const netWorthGroupStartTs = netWorthGroupAccounts.length
+    ? Math.min(...netWorthGroupAccounts.map((a) => new Date(a.created_at).getTime()))
+    : undefined;
+  const netWorthHistory = computeHistory(
+    netWorthGroupTxns,
+    undefined,
+    netWorthGroupStart,
+    currencyById,
+    usdToEur,
+    netWorthGroupStartTs
+  );
 
   // Day Trading/Investing tabs only appear once those accounts exist.
   const netWorthGroups: { id: NetWorthGroup; label: string }[] = [
@@ -333,7 +353,7 @@ export function Overview({
             {isTrend ? (
               <div className="w-full px-2">
                 <NetWorthGroupPills value={netWorthGroup} onChange={setNetWorthGroup} groups={netWorthGroups} />
-                <LineChart points={netWorthHistory} height={200} full />
+                <LineChart points={netWorthHistory} height={200} full zeroBaseline={false} />
               </div>
             ) : (
               <div className="w-full flex flex-col items-center">

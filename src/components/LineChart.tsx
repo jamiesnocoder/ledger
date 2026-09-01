@@ -21,10 +21,10 @@ function pickAxisIndices(n: number, maxLabels = 4): number[] {
   return Array.from(new Set(indices));
 }
 
-function pathData(points: HistoryPoint[], h: number, padY: number) {
+function pathData(points: HistoryPoint[], h: number, padY: number, zeroBaseline: boolean) {
   const vals = points.map((p) => p.value);
-  let min = Math.min(...vals, 0);
-  let max = Math.max(...vals, 0);
+  let min = zeroBaseline ? Math.min(...vals, 0) : Math.min(...vals);
+  let max = zeroBaseline ? Math.max(...vals, 0) : Math.max(...vals);
   if (min === max) {
     min -= 1;
     max += 1;
@@ -45,11 +45,13 @@ export function LineChart({
   height = 56,
   colorVar = "--ink",
   full = false,
+  zeroBaseline = true,
 }: {
   points: HistoryPoint[];
   height?: number;
   colorVar?: string;
   full?: boolean;
+  zeroBaseline?: boolean;
 }) {
   const gradId = useId();
   const [hover, setHover] = useState<number | null>(null);
@@ -68,7 +70,7 @@ export function LineChart({
   const padY = full ? 10 : 4;
   const dateLabelSpace = full ? DATE_LABEL_H : 0;
   const plotHeight = height - dateLabelSpace;
-  const pd = pathData(points, plotHeight, padY);
+  const pd = pathData(points, plotHeight, padY, zeroBaseline);
   const last = pd.coords[pd.coords.length - 1];
   const plotBottom = plotHeight - padY;
   const plotTop = padY;
