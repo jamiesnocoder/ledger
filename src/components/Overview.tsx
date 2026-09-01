@@ -64,7 +64,11 @@ function trendBarLabels(days: number): string[] {
   return labels;
 }
 
-const byDateDesc = (a: FeedItem, b: FeedItem) => new Date(b.ts).getTime() - new Date(a.ts).getTime();
+// Entries added the same day all share noon as their occurred_at (there's no
+// time picker), so ties fall back to created_at - the moment it was actually
+// added - to keep the most recently added entry on top.
+const byDateDesc = (a: FeedItem, b: FeedItem) =>
+  new Date(b.ts).getTime() - new Date(a.ts).getTime() || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 
 export function Overview({
   accounts,
@@ -222,6 +226,7 @@ export function Overview({
       signed: true,
       currency: acc?.currency ?? "EUR",
       ts: t.occurred_at,
+      createdAt: t.created_at,
       iconKey: KIND_ICON[t.kind] ?? "tag",
       colorVar: "--text-2",
     };
@@ -238,6 +243,7 @@ export function Overview({
       signed: false,
       currency: acc?.currency ?? "EUR",
       ts: e.occurred_at,
+      createdAt: e.created_at,
       iconKey: (cat?.icon as keyof typeof Icon) ?? "tag",
       colorVar: "--text-2",
     };

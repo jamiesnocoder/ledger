@@ -12,6 +12,7 @@ export interface FeedItem {
   signed: boolean; // whether to render +/- coloring
   currency: Currency; // the underlying account's own currency
   ts: string;
+  createdAt: string; // tie-breaker for same-day entries, which all share noon as their ts
   iconKey: keyof typeof Icon;
   colorVar: string;
 }

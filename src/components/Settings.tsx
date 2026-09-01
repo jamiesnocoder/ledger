@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Icon } from "@/components/icons";
+import { Icon, CATEGORY_ICON_KEYS } from "@/components/icons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { computeBalances } from "@/lib/compute";
 import { fmtMoney } from "@/lib/format";
@@ -18,7 +18,9 @@ export function Settings({ data }: { data: AppData }) {
   const [editingAccount, setEditingAccount] = useState<string | null>(null);
   const [newAccountName, setNewAccountName] = useState("");
   const [addingAccount, setAddingAccount] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState("");
+  const [newCategoryIcon, setNewCategoryIcon] = useState<string>("tag");
   const [addingCategory, setAddingCategory] = useState(false);
 
   const { byAccount } = computeBalances(data.accounts, data.accountTransactions, data.usdToEur);
@@ -69,10 +71,22 @@ export function Settings({ data }: { data: AppData }) {
   async function handleAddCategory() {
     if (!newCategory.trim()) return;
     try {
-      await addCategory(newCategory.trim(), "tag", data.categories.length);
+      await addCategory(newCategory.trim(), newCategoryIcon, data.categories.length);
       toast("Category added");
       setNewCategory("");
+      setNewCategoryIcon("tag");
       setAddingCategory(false);
+      refresh();
+    } catch {
+      toast("Couldn't save — try again");
+    }
+  }
+
+  async function saveCategory(id: string, name: string, icon: string) {
+    try {
+      await updateCategory(id, { name, icon });
+      toast("Category updated");
+      setEditingCategory(null);
       refresh();
     } catch {
       toast("Couldn't save — try again");
@@ -83,6 +97,7 @@ export function Settings({ data }: { data: AppData }) {
     try {
       await updateCategory(id, { archived: true });
       toast("Category removed");
+      setEditingCategory(null);
       refresh();
     } catch {
       toast("Couldn't remove — try again");
@@ -172,52 +187,56 @@ export function Settings({ data }: { data: AppData }) {
 
         <Section title="Expense categories">
           <div className="flex flex-col gap-2">
-            {data.categories.map((c) => {
-              const IconComp = Icon[c.icon as keyof typeof Icon] ?? Icon.tag;
-              return (
-                <div
-                  key={c.id}
-                  className="flex items-center gap-3 rounded-xl px-3.5 py-2.5"
-                  style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }}
-                >
-                  <span
-                    className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                    style={{ background: "var(--surface-2)", color: "var(--text-2)" }}
-                  >
-                    <IconComp size={15} />
-                  </span>
-                  <span className="text-[13.5px] font-semibold flex-1">{c.name}</span>
-                  <button
-                    onClick={() => archiveCategory(c.id)}
-                    aria-label={`Remove ${c.name}`}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center"
-                    style={{ color: "var(--text-3)" }}
-                  >
-                    <Icon.trash size={14} />
-                  </button>
-                </div>
-              );
-            })}
+            {data.categories.map((c) => (
+              <CategoryRow
+                key={c.id}
+                id={c.id}
+                name={c.name}
+                icon={c.icon}
+                editing={editingCategory === c.id}
+                onEdit={() => setEditingCategory(c.id)}
+                onCancel={() => setEditingCategory(null)}
+                onSave={saveCategory}
+                onRemove={archiveCategory}
+              />
+            ))}
           </div>
 
           {addingCategory ? (
-            <div className="flex gap-2 mt-2.5">
+            <div className="rounded-xl px-3.5 py-3 mt-2.5" style={{ border: "1px solid var(--ink)", background: "var(--surface)", boxShadow: "var(--shadow)" }}>
               <input
                 autoFocus
                 value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAddCategory()}
                 placeholder="Category name"
-                className="flex-1 rounded-xl px-3.5 py-2.5 text-[13.5px] outline-none"
+                className="w-full rounded-lg px-3 py-2 text-[13.5px] font-semibold outline-none mb-2"
                 style={{ background: "var(--surface-2)", border: "1px solid var(--border-strong)", color: "var(--text)" }}
               />
-              <button
-                onClick={handleAddCategory}
-                className="px-4 rounded-xl font-bold text-[13px]"
-                style={{ background: "var(--ink)", color: "var(--ink-inverse)" }}
-              >
-                Add
-              </button>
+              <label className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--text-3)" }}>
+                Icon
+              </label>
+              <IconPicker value={newCategoryIcon} onChange={setNewCategoryIcon} />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setAddingCategory(false);
+                    setNewCategory("");
+                    setNewCategoryIcon("tag");
+                  }}
+                  className="flex-1 py-2 rounded-lg font-bold text-[12.5px]"
+                  style={{ background: "var(--surface-2)", color: "var(--text-2)" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddCategory}
+                  className="flex-1 py-2 rounded-lg font-bold text-[12.5px]"
+                  style={{ background: "var(--ink)", color: "var(--ink-inverse)" }}
+                >
+                  Add
+                </button>
+              </div>
             </div>
           ) : (
             <button
@@ -259,6 +278,120 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </div>
       {children}
     </section>
+  );
+}
+
+function IconPicker({ value, onChange }: { value: string; onChange: (icon: string) => void }) {
+  return (
+    <div className="grid grid-cols-6 gap-1.5 mt-1 mb-3">
+      {CATEGORY_ICON_KEYS.map((key) => {
+        const IconComp = Icon[key];
+        const selected = value === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChange(key)}
+            aria-label={key}
+            aria-pressed={selected}
+            className="aspect-square rounded-lg flex items-center justify-center"
+            style={{
+              background: selected ? "var(--ink)" : "var(--surface-2)",
+              color: selected ? "var(--ink-inverse)" : "var(--text-2)",
+            }}
+          >
+            <IconComp size={15} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CategoryRow({
+  id,
+  name,
+  icon,
+  editing,
+  onEdit,
+  onCancel,
+  onSave,
+  onRemove,
+}: {
+  id: string;
+  name: string;
+  icon: string;
+  editing: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSave: (id: string, name: string, icon: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [localName, setLocalName] = useState(name);
+  const [localIcon, setLocalIcon] = useState(icon);
+  const IconComp = Icon[icon as keyof typeof Icon] ?? Icon.tag;
+
+  if (!editing) {
+    return (
+      <div
+        className="flex items-center gap-3 rounded-xl px-3.5 py-2.5"
+        style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }}
+      >
+        <button onClick={onEdit} className="flex items-center gap-3 flex-1 min-w-0 text-left active:scale-[0.98]" style={{ transition: "transform .1s" }}>
+          <span
+            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: "var(--surface-2)", color: "var(--text-2)" }}
+          >
+            <IconComp size={15} />
+          </span>
+          <span className="text-[13.5px] font-semibold truncate">{name}</span>
+        </button>
+        <button
+          onClick={() => onRemove(id)}
+          aria-label={`Remove ${name}`}
+          className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+          style={{ color: "var(--text-3)" }}
+        >
+          <Icon.trash size={14} />
+        </button>
+      </div>
+    );
+  }
+
+  function submit() {
+    onSave(id, localName.trim() || name, localIcon);
+  }
+
+  return (
+    <div className="rounded-xl px-3.5 py-3" style={{ border: "1px solid var(--ink)", background: "var(--surface)", boxShadow: "var(--shadow)" }}>
+      <input
+        autoFocus
+        value={localName}
+        onChange={(e) => setLocalName(e.target.value)}
+        className="w-full rounded-lg px-3 py-2 text-[13.5px] font-semibold outline-none mb-2"
+        style={{ background: "var(--surface-2)", border: "1px solid var(--border-strong)", color: "var(--text)" }}
+      />
+      <label className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--text-3)" }}>
+        Icon
+      </label>
+      <IconPicker value={localIcon} onChange={setLocalIcon} />
+      <div className="flex gap-2">
+        <button
+          onClick={onCancel}
+          className="flex-1 py-2 rounded-lg font-bold text-[12.5px]"
+          style={{ background: "var(--surface-2)", color: "var(--text-2)" }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={submit}
+          className="flex-1 py-2 rounded-lg font-bold text-[12.5px]"
+          style={{ background: "var(--ink)", color: "var(--ink-inverse)" }}
+        >
+          Save
+        </button>
+      </div>
+    </div>
   );
 }
 

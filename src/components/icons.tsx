@@ -176,6 +176,153 @@ export const Icon = {
       <path d="M8 12h5m3 0h.01" />
     </Svg>
   ),
+  briefcase: (p: IconProps) => (
+    <Svg {...p}>
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+    </Svg>
+  ),
+  home: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </Svg>
+  ),
+  truck: (p: IconProps) => (
+    <Svg {...p}>
+      <rect x="1" y="3" width="15" height="13" />
+      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+      <circle cx="5.5" cy="18.5" r="2.5" />
+      <circle cx="18.5" cy="18.5" r="2.5" />
+    </Svg>
+  ),
+  cart: (p: IconProps) => (
+    <Svg {...p}>
+      <circle cx="9" cy="21" r="1" />
+      <circle cx="20" cy="21" r="1" />
+      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+    </Svg>
+  ),
+  phone: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
+    </Svg>
+  ),
+  music: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
+    </Svg>
+  ),
+  activity: (p: IconProps) => (
+    <Svg {...p}>
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </Svg>
+  ),
+  pawprint: (p: IconProps) => (
+    <Svg {...p}>
+      <circle cx="7" cy="8" r="2" />
+      <circle cx="12" cy="6" r="2" />
+      <circle cx="17" cy="8" r="2" />
+      <path d="M8 15c0-2.5 1.8-4.5 4-4.5s4 2 4 4.5-1.8 4.5-4 4.5-4-2-4-4.5z" />
+    </Svg>
+  ),
+  zap: (p: IconProps) => (
+    <Svg {...p}>
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </Svg>
+  ),
+  creditCard: (p: IconProps) => (
+    <Svg {...p}>
+      <rect x="1" y="4" width="22" height="16" rx="2" />
+      <line x1="1" y1="10" x2="23" y2="10" />
+    </Svg>
+  ),
+  shield: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </Svg>
+  ),
+  dollarSign: (p: IconProps) => (
+    <Svg {...p}>
+      <line x1="12" y1="1" x2="12" y2="23" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </Svg>
+  ),
+  gamepad: (p: IconProps) => (
+    <Svg {...p}>
+      <rect x="2" y="7" width="20" height="10" rx="5" />
+      <line x1="7" y1="10" x2="7" y2="14" />
+      <line x1="5" y1="12" x2="9" y2="12" />
+      <circle cx="16" cy="10" r="1" />
+      <circle cx="18" cy="13" r="1" />
+    </Svg>
+  ),
+  mapPin: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </Svg>
+  ),
+  droplet: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+    </Svg>
+  ),
+  wifi: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+      <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+      <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+      <line x1="12" y1="20" x2="12.01" y2="20" />
+    </Svg>
+  ),
+  book: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </Svg>
+  ),
+  star: (p: IconProps) => (
+    <Svg {...p}>
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </Svg>
+  ),
+  moreHorizontal: (p: IconProps) => (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+      <circle cx="5" cy="12" r="1" />
+    </Svg>
+  ),
 };
 
-export const CATEGORY_ICON_KEYS = ["food", "bag", "plane", "wrench", "film", "heart", "tag"] as const;
+export const CATEGORY_ICON_KEYS = [
+  "food",
+  "cart",
+  "bag",
+  "briefcase",
+  "home",
+  "truck",
+  "plane",
+  "mapPin",
+  "phone",
+  "wifi",
+  "zap",
+  "droplet",
+  "creditCard",
+  "dollarSign",
+  "shield",
+  "wrench",
+  "film",
+  "music",
+  "gamepad",
+  "activity",
+  "book",
+  "pawprint",
+  "star",
+  "heart",
+  "tag",
+  "moreHorizontal",
+] as const;
