@@ -39,7 +39,7 @@ export function BarChart({
   }
 
   return (
-    <div className="relative">
+    <div className="relative chart-touch">
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block overflow-visible">
         {GRID_FRACTIONS.map((f) => {
           const y = PAD_TOP + plotH * (1 - f);

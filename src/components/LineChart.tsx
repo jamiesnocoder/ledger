@@ -92,7 +92,7 @@ export function LineChart({
   }
 
   return (
-    <div className="relative" style={{ height }} onPointerLeave={() => setHover(null)}>
+    <div className="relative chart-touch" style={{ height }} onPointerLeave={() => setHover(null)}>
       <svg
         width="100%"
         height={height}
