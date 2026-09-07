@@ -127,31 +127,33 @@ export function DonutChart({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-7 gap-y-3.5 w-full px-2">
-        {slices.map((s) => (
-          <button
-            key={s.id}
-            onPointerEnter={() => setActive(s.id)}
-            onPointerLeave={() => setActive(null)}
-            onClick={() => setActive(active === s.id ? null : s.id)}
-            className="flex items-start gap-2 text-left rounded-lg px-1.5 py-1.5 -mx-1.5"
-            style={{ background: active === s.id ? "var(--surface-2)" : "transparent" }}
-          >
-            <span
-              className="w-2.5 h-2.5 rounded-full shrink-0 mt-[3px]"
-              style={{ background: colorById.get(s.id), opacity: s.value > 0 ? 1 : 0.35 }}
-            />
-            <span className="flex-1 min-w-0">
-              <span className="block text-[12.5px] font-semibold leading-snug" style={{ color: "var(--text-2)" }}>
-                {s.label}
+      {slices.length > 1 && (
+        <div className="grid grid-cols-2 gap-x-7 gap-y-3.5 w-full px-2">
+          {slices.map((s) => (
+            <button
+              key={s.id}
+              onPointerEnter={() => setActive(s.id)}
+              onPointerLeave={() => setActive(null)}
+              onClick={() => setActive(active === s.id ? null : s.id)}
+              className="flex items-start gap-2 text-left rounded-lg px-1.5 py-1.5 -mx-1.5"
+              style={{ background: active === s.id ? "var(--surface-2)" : "transparent" }}
+            >
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0 mt-[3px]"
+                style={{ background: colorById.get(s.id), opacity: s.value > 0 ? 1 : 0.35 }}
+              />
+              <span className="flex-1 min-w-0">
+                <span className="block text-[12.5px] font-semibold leading-snug" style={{ color: "var(--text-2)" }}>
+                  {s.label}
+                </span>
+                <span className="num block text-[12.5px] font-semibold tabular-nums" style={{ color: "var(--text)" }}>
+                  {fmtMoney(s.value)}
+                </span>
               </span>
-              <span className="num block text-[12.5px] font-semibold tabular-nums" style={{ color: "var(--text)" }}>
-                {fmtMoney(s.value)}
-              </span>
-            </span>
-          </button>
-        ))}
-      </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

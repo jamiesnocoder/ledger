@@ -25,6 +25,29 @@ export function fmtCompact(n: number): string {
   return sign + (v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1).replace(/\.0$/, "")}k` : String(v));
 }
 
+// Label for a date-range picker trigger: "All time", a full calendar month
+// spelled out ("September 2026"), a single day, or "24 Aug – 30 Aug" (year
+// added only when the range crosses one). toMs is exclusive.
+export function fmtRangeLabel(fromMs: number | undefined, toMs: number): string {
+  if (fromMs === undefined) return "All time";
+  const from = new Date(fromMs);
+  const toInclusive = new Date(toMs - 86400000);
+  const isFullMonth =
+    from.getDate() === 1 && new Date(from.getFullYear(), from.getMonth() + 1, 1).getTime() === toMs;
+  if (isFullMonth) return from.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  if (from.toDateString() === toInclusive.toDateString()) {
+    return from.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }
+  const sameYear = from.getFullYear() === toInclusive.getFullYear();
+  const fromLabel = from.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const toLabel = toInclusive.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: sameYear ? undefined : "numeric",
+  });
+  return `${fromLabel} – ${toLabel}`;
+}
+
 export function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", {
     day: "numeric",

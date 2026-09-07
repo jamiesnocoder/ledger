@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { DonutChart, type DonutSlice } from "@/components/DonutChart";
 import { LineChart } from "@/components/LineChart";
 import { CalendarView } from "@/components/CalendarView";
+import { DateRangeSheet, type DateRange } from "@/components/DateRangeSheet";
 import { ActivityList, ActivityRow, type FeedItem } from "@/components/ActivityList";
 import { EditEntrySheet, entryKeyFor, type EditTarget } from "@/components/EditEntrySheet";
 import {
@@ -19,6 +20,7 @@ import {
   toEur,
   type AmountEntry,
 } from "@/lib/compute";
+import { fmtRangeLabel } from "@/lib/format";
 import { Icon } from "@/components/icons";
 import type { Account, AccountTransaction, Currency, Expense, ExpenseCategory } from "@/lib/types";
 
@@ -42,7 +44,6 @@ const PAGE_ORDER: PageKind[] = ["spent", "networth", "made"];
 
 type NetWorthGroup = "total" | "cash" | "daytrading" | "investment";
 type ChartMode = "donut" | "trend" | "calendar";
-type PeriodMode = "month" | "all";
 type FilterablePage = "spent" | "made";
 
 function startOfMonth(d: Date): Date {
@@ -79,13 +80,14 @@ export function Overview({
     networth: "donut",
     made: "donut",
   });
-  const [period, setPeriod] = useState<Record<FilterablePage, { mode: PeriodMode; month: Date }>>({
-    spent: { mode: "month", month: startOfMonth(new Date(now)) },
-    made: { mode: "month", month: startOfMonth(new Date(now)) },
+  const [period, setPeriod] = useState<Record<FilterablePage, DateRange>>({
+    spent: monthBoundsMs(startOfMonth(new Date(now))),
+    made: monthBoundsMs(startOfMonth(new Date(now))),
   });
   const [category, setCategory] = useState<Record<FilterablePage, string>>({ spent: "all", made: "all" });
   const [netWorthGroup, setNetWorthGroup] = useState<NetWorthGroup>("total");
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+  const [rangeSheetFor, setRangeSheetFor] = useState<FilterablePage | null>(null);
 
   // Land on the middle page (Net worth) on first paint.
   useLayoutEffect(() => {
@@ -108,7 +110,7 @@ export function Overview({
   }));
 
   // --- Spent: category-filtered, period-scoped -----------------------------
-  const spentRange = period.spent.mode === "month" ? monthBoundsMs(period.spent.month) : { fromMs: undefined, toMs: Infinity };
+  const spentRange = period.spent;
   const spendByCategoryAll = computeSpendByCategory(expenses, categories, spentRange.fromMs, spentRange.toMs);
   const spentCategoryOptions = [
     { id: "all", label: "All" },
@@ -129,7 +131,7 @@ export function Overview({
   const spentCumulative = cumulativeInRange(spentEntries, spentRange.fromMs, spentRange.toMs);
 
   // --- Made: kind-filtered, period-scoped -----------------------------------
-  const madeRange = period.made.mode === "month" ? monthBoundsMs(period.made.month) : { fromMs: undefined, toMs: Infinity };
+  const madeRange = period.made;
   const madeByKindAll = computeMadeByKind(transactions, accounts, madeRange.fromMs, madeRange.toMs);
   const madeCategoryOptions = [
     { id: "all", label: "All" },
@@ -202,22 +204,6 @@ export function Overview({
 
   function setMode(kind: PageKind, mode: ChartMode) {
     setViewMode((prev) => ({ ...prev, [kind]: mode }));
-  }
-
-  // Calendar always shows one specific month, so switching to it while
-  // "All time" is selected would leave no visible month context - pull the
-  // period back to "Month" (keeping whatever month was last chosen) instead.
-  function selectMode(kind: FilterablePage, mode: ChartMode) {
-    setMode(kind, mode);
-    if (mode === "calendar" && period[kind].mode === "all") setPeriodMode(kind, "month");
-  }
-
-  function setPeriodMode(kind: FilterablePage, mode: PeriodMode) {
-    setPeriod((prev) => ({ ...prev, [kind]: { ...prev[kind], mode } }));
-  }
-
-  function setPeriodMonth(kind: FilterablePage, month: Date) {
-    setPeriod((prev) => ({ ...prev, [kind]: { ...prev[kind], month } }));
   }
 
   function goToPage(i: number) {
@@ -375,10 +361,9 @@ export function Overview({
             <ChartHeader
               title="Spent"
               mode={mode}
-              onModeChange={(m) => selectMode("spent", m)}
-              period={period.spent}
-              onPeriodModeChange={(m) => setPeriodMode("spent", m)}
-              onMonthChange={(d) => setPeriodMonth("spent", d)}
+              onModeChange={(m) => setMode("spent", m)}
+              rangeLabel={fmtRangeLabel(spentRange.fromMs, spentRange.toMs)}
+              onOpenRangePicker={() => setRangeSheetFor("spent")}
             />
             <FilterPills value={category.spent} onChange={(id) => setCategory((prev) => ({ ...prev, spent: id }))} options={spentCategoryOptions} />
             {mode === "trend" && (
@@ -386,7 +371,15 @@ export function Overview({
                 <LineChart points={spentCumulative} height={180} full />
               </div>
             )}
-            {mode === "calendar" && <CalendarView entries={spentEntries} month={period.spent.month} />}
+            {mode === "calendar" && (
+              <CalendarView
+                key={`${category.spent}-${spentRange.fromMs ?? "all"}-${spentRange.toMs}`}
+                entries={spentEntries}
+                initialMonth={spentRange.fromMs !== undefined ? new Date(spentRange.fromMs) : new Date(now)}
+                rangeFromMs={spentRange.fromMs}
+                rangeToMs={Number.isFinite(spentRange.toMs) ? spentRange.toMs : undefined}
+              />
+            )}
             {mode === "donut" && (
               <div className="w-full flex flex-col items-center">
                 <DonutChart slices={spentSlices} total={spentTotal} totalLabel="Spent" />
@@ -399,10 +392,9 @@ export function Overview({
             <ChartHeader
               title="Made"
               mode={mode}
-              onModeChange={(m) => selectMode("made", m)}
-              period={period.made}
-              onPeriodModeChange={(m) => setPeriodMode("made", m)}
-              onMonthChange={(d) => setPeriodMonth("made", d)}
+              onModeChange={(m) => setMode("made", m)}
+              rangeLabel={fmtRangeLabel(madeRange.fromMs, madeRange.toMs)}
+              onOpenRangePicker={() => setRangeSheetFor("made")}
             />
             <FilterPills value={category.made} onChange={(id) => setCategory((prev) => ({ ...prev, made: id }))} options={madeCategoryOptions} />
             {mode === "trend" && (
@@ -410,7 +402,15 @@ export function Overview({
                 <LineChart points={madeCumulative} height={180} full />
               </div>
             )}
-            {mode === "calendar" && <CalendarView entries={madeEntries} month={period.made.month} />}
+            {mode === "calendar" && (
+              <CalendarView
+                key={`${category.made}-${madeRange.fromMs ?? "all"}-${madeRange.toMs}`}
+                entries={madeEntries}
+                initialMonth={madeRange.fromMs !== undefined ? new Date(madeRange.fromMs) : new Date(now)}
+                rangeFromMs={madeRange.fromMs}
+                rangeToMs={Number.isFinite(madeRange.toMs) ? madeRange.toMs : undefined}
+              />
+            )}
             {mode === "donut" && (
               <div className="w-full flex flex-col items-center">
                 <DonutChart slices={madeSlices} total={madeTotal} totalLabel="Made" />
@@ -508,6 +508,16 @@ export function Overview({
         onClose={() => setEditTarget(null)}
         onChanged={onChanged}
       />
+
+      <DateRangeSheet
+        key={rangeSheetFor ?? "none"}
+        open={rangeSheetFor !== null}
+        onClose={() => setRangeSheetFor(null)}
+        initial={rangeSheetFor ? period[rangeSheetFor] : { fromMs: undefined, toMs: Infinity }}
+        onApply={(range) => {
+          if (rangeSheetFor) setPeriod((prev) => ({ ...prev, [rangeSheetFor]: range }));
+        }}
+      />
     </div>
   );
 }
@@ -559,87 +569,18 @@ function ChartModeSelector({ value, onChange }: { value: ChartMode; onChange: (m
   );
 }
 
-function PeriodControl({
-  mode,
-  month,
-  onModeChange,
-  onMonthChange,
-}: {
-  mode: PeriodMode;
-  month: Date;
-  onModeChange: (m: PeriodMode) => void;
-  onMonthChange: (d: Date) => void;
-}) {
-  const monthLabel = month.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
-  const now = new Date();
-  const isCurrentMonth = month.getFullYear() === now.getFullYear() && month.getMonth() === now.getMonth();
-
-  function shift(delta: number) {
-    onMonthChange(new Date(month.getFullYear(), month.getMonth() + delta, 1));
-  }
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <div className="flex rounded-lg p-0.5 gap-0.5" style={{ background: "var(--surface-2)" }}>
-        {(["month", "all"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => onModeChange(m)}
-            className="px-2.5 py-1.5 rounded-md text-[10.5px] font-bold"
-            style={{
-              background: mode === m ? "var(--surface)" : "transparent",
-              color: mode === m ? "var(--text)" : "var(--text-3)",
-            }}
-          >
-            {m === "all" ? "All time" : "Month"}
-          </button>
-        ))}
-      </div>
-      {mode === "month" && (
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={() => shift(-1)}
-            aria-label="Previous month"
-            className="w-6 h-6 rounded-md flex items-center justify-center"
-            style={{ color: "var(--text-2)" }}
-          >
-            <Icon.chevronLeft size={12} />
-          </button>
-          <span className="text-[10.5px] font-bold w-[52px] text-center" style={{ color: "var(--text)" }}>
-            {monthLabel}
-          </span>
-          <button
-            type="button"
-            onClick={() => !isCurrentMonth && shift(1)}
-            disabled={isCurrentMonth}
-            aria-label="Next month"
-            className="w-6 h-6 rounded-md flex items-center justify-center"
-            style={{ color: "var(--text-2)", opacity: isCurrentMonth ? 0.3 : 1 }}
-          >
-            <Icon.chevronRight size={12} />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function ChartHeader({
   title,
   mode,
   onModeChange,
-  period,
-  onPeriodModeChange,
-  onMonthChange,
+  rangeLabel,
+  onOpenRangePicker,
 }: {
   title: string;
   mode: ChartMode;
   onModeChange: (m: ChartMode) => void;
-  period: { mode: PeriodMode; month: Date };
-  onPeriodModeChange: (m: PeriodMode) => void;
-  onMonthChange: (d: Date) => void;
+  rangeLabel: string;
+  onOpenRangePicker: () => void;
 }) {
   return (
     <div className="w-full px-2 mb-2">
@@ -647,7 +588,15 @@ function ChartHeader({
         {title}
       </div>
       <div className="flex items-center justify-between gap-2">
-        <PeriodControl mode={period.mode} month={period.month} onModeChange={onPeriodModeChange} onMonthChange={onMonthChange} />
+        <button
+          type="button"
+          onClick={onOpenRangePicker}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold min-w-0"
+          style={{ background: "var(--surface-2)", color: "var(--text)" }}
+        >
+          <Icon.calendar size={12} className="shrink-0" />
+          <span className="truncate">{rangeLabel}</span>
+        </button>
         <ChartModeSelector value={mode} onChange={onModeChange} />
       </div>
     </div>
