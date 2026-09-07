@@ -20,7 +20,7 @@ import {
   toEur,
   type AmountEntry,
 } from "@/lib/compute";
-import { fmtRangeLabel } from "@/lib/format";
+import { fmtMoney, fmtRangeLabel } from "@/lib/format";
 import { Icon } from "@/components/icons";
 import type { Account, AccountTransaction, Currency, Expense, ExpenseCategory } from "@/lib/types";
 
@@ -368,7 +368,7 @@ export function Overview({
             <FilterPills value={category.spent} onChange={(id) => setCategory((prev) => ({ ...prev, spent: id }))} options={spentCategoryOptions} />
             {mode === "trend" && (
               <div className="w-full px-2">
-                <LineChart points={spentCumulative} height={180} full />
+                <LineChart points={spentCumulative} height={180} full summary={{ label: "Spent", value: fmtMoney(spentTotal) }} />
               </div>
             )}
             {mode === "calendar" && (
@@ -399,7 +399,12 @@ export function Overview({
             <FilterPills value={category.made} onChange={(id) => setCategory((prev) => ({ ...prev, made: id }))} options={madeCategoryOptions} />
             {mode === "trend" && (
               <div className="w-full px-2">
-                <LineChart points={madeCumulative} height={180} full />
+                <LineChart
+                  points={madeCumulative}
+                  height={180}
+                  full
+                  summary={{ label: madeTotal >= 0 ? "Made" : "Lost", value: fmtMoney(Math.abs(madeTotal)) }}
+                />
               </div>
             )}
             {mode === "calendar" && (

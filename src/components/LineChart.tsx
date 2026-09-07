@@ -46,12 +46,14 @@ export function LineChart({
   colorVar = "--ink",
   full = false,
   zeroBaseline = true,
+  summary,
 }: {
   points: HistoryPoint[];
   height?: number;
   colorVar?: string;
   full?: boolean;
   zeroBaseline?: boolean;
+  summary?: { label: string; value: string };
 }) {
   const gradId = useId();
   const [hover, setHover] = useState<number | null>(null);
@@ -178,6 +180,19 @@ export function LineChart({
         >
           <div style={{ color: "var(--text-3)", fontSize: 10.5 }}>{fmtDate(new Date(points[hover].ts).toISOString())}</div>
           <div className="num font-semibold">{fmtMoney(points[hover].value)}</div>
+        </div>
+      )}
+      {summary && (
+        <div
+          className="absolute left-2 top-2 pointer-events-none"
+          style={{ opacity: hover !== null ? 0 : 1, transition: "opacity .15s" }}
+        >
+          <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--text-3)" }}>
+            {summary.label}
+          </div>
+          <div className="num font-extrabold" style={{ fontSize: 22, letterSpacing: "-0.02em", color: "var(--text)" }}>
+            {summary.value}
+          </div>
         </div>
       )}
     </div>
