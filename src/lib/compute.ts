@@ -117,13 +117,26 @@ export interface KindTotal {
   total: number;
 }
 
-// "Money made" - positive inflows only (deposits, gifts, and trading/
-// investment gains), excluding transfers between your own accounts and
-// manual balance adjustments, which aren't really "made" money.
-export function computeMadeByKind(txns: AccountTransaction[], sinceMs?: number): KindTotal[] {
+// Whether a transaction counts toward "Made": deposits/gifts/trading gains
+// are always eligible, but an account set to "revenue" mode only counts its
+// positive transactions (a plain deposit), while "profit" mode nets gains
+// and losses together (a trading account logging each trade's P&L result).
+function countsAsMade(t: AccountTransaction, madeModeById: Record<string, string | undefined>): boolean {
+  if (!MADE_KINDS.has(t.kind)) return false;
+  if (madeModeById[t.account_id] === "profit") return true;
+  return t.amount > 0;
+}
+
+// "Money made" - deposits, gifts, and trading/investment results (netted for
+// accounts in profit mode, see countsAsMade) - excluding transfers between
+// your own accounts and manual balance adjustments, which aren't really
+// "made" money.
+export function computeMadeByKind(txns: AccountTransaction[], accounts: Account[], sinceMs?: number): KindTotal[] {
+  const madeModeById: Record<string, string | undefined> = {};
+  accounts.forEach((a) => (madeModeById[a.id] = a.made_mode));
   const totals = new Map<string, number>();
   txns
-    .filter((t) => t.amount > 0 && MADE_KINDS.has(t.kind))
+    .filter((t) => countsAsMade(t, madeModeById))
     .filter((t) => (sinceMs ? new Date(t.occurred_at).getTime() >= sinceMs : true))
     .forEach((t) => {
       totals.set(t.kind, (totals.get(t.kind) ?? 0) + t.amount);
@@ -166,7 +179,9 @@ export function dailySpend(expenses: Expense[], days: number): HistoryPoint[] {
 
 // Daily "money made" totals for the last N days (oldest first) - the same
 // shape as dailySpend, for the Made trend bar chart.
-export function dailyMade(txns: AccountTransaction[], days: number): HistoryPoint[] {
+export function dailyMade(txns: AccountTransaction[], accounts: Account[], days: number): HistoryPoint[] {
+  const madeModeById: Record<string, string | undefined> = {};
+  accounts.forEach((a) => (madeModeById[a.id] = a.made_mode));
   const now = new Date();
   now.setHours(23, 59, 59, 999);
   const buckets: HistoryPoint[] = [];
@@ -177,7 +192,7 @@ export function dailyMade(txns: AccountTransaction[], days: number): HistoryPoin
     buckets.push({ ts: d.getTime(), value: 0 });
   }
   txns
-    .filter((t) => t.amount > 0 && MADE_KINDS.has(t.kind))
+    .filter((t) => countsAsMade(t, madeModeById))
     .forEach((t) => {
       const ts = new Date(t.occurred_at).getTime();
       const dayStart = new Date(ts);

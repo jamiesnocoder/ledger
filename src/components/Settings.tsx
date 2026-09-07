@@ -17,6 +17,8 @@ export function Settings({ data }: { data: AppData }) {
   const toast = useToast();
   const [editingAccount, setEditingAccount] = useState<string | null>(null);
   const [newAccountName, setNewAccountName] = useState("");
+  const [newAccountMadeMode, setNewAccountMadeMode] = useState<"revenue" | "profit">("revenue");
+  const [newAccountIncludeInSpent, setNewAccountIncludeInSpent] = useState(true);
   const [addingAccount, setAddingAccount] = useState(false);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState("");
@@ -29,9 +31,16 @@ export function Settings({ data }: { data: AppData }) {
     router.refresh();
   }
 
-  async function saveAccount(id: string, name: string, startingBalance: number, currency: Currency) {
+  async function saveAccount(
+    id: string,
+    name: string,
+    startingBalance: number,
+    currency: Currency,
+    madeMode: "revenue" | "profit",
+    includeInSpent: boolean
+  ) {
     try {
-      await updateAccount(id, { name, starting_balance: startingBalance, currency });
+      await updateAccount(id, { name, starting_balance: startingBalance, currency, made_mode: madeMode, include_in_spent: includeInSpent });
       toast("Account updated");
       setEditingAccount(null);
       refresh();
@@ -43,9 +52,14 @@ export function Settings({ data }: { data: AppData }) {
   async function handleAddAccount() {
     if (!newAccountName.trim()) return;
     try {
-      await addAccount(newAccountName.trim(), data.accounts.length);
+      await addAccount(newAccountName.trim(), data.accounts.length, {
+        madeMode: newAccountMadeMode,
+        includeInSpent: newAccountIncludeInSpent,
+      });
       toast("Account added");
       setNewAccountName("");
+      setNewAccountMadeMode("revenue");
+      setNewAccountIncludeInSpent(true);
       setAddingAccount(false);
       refresh();
     } catch {
@@ -143,6 +157,8 @@ export function Settings({ data }: { data: AppData }) {
                 name={a.name}
                 startingBalance={a.starting_balance ?? 0}
                 currency={a.currency ?? "EUR"}
+                madeMode={a.made_mode ?? "revenue"}
+                includeInSpent={a.include_in_spent ?? true}
                 editing={editingAccount === a.id}
                 onEdit={() => setEditingAccount(a.id)}
                 onCancel={() => setEditingAccount(null)}
@@ -156,23 +172,66 @@ export function Settings({ data }: { data: AppData }) {
           </div>
 
           {addingAccount ? (
-            <div className="flex gap-2 mt-2.5">
+            <div className="rounded-xl px-3.5 py-3 mt-2.5" style={{ border: "1px solid var(--ink)", background: "var(--surface)", boxShadow: "var(--shadow)" }}>
               <input
                 autoFocus
                 value={newAccountName}
                 onChange={(e) => setNewAccountName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAddAccount()}
                 placeholder="Account name, e.g. Savings"
-                className="flex-1 rounded-xl px-3.5 py-2.5 text-[13.5px] outline-none"
+                className="w-full rounded-lg px-3 py-2 text-[13.5px] font-semibold outline-none mb-2"
                 style={{ background: "var(--surface-2)", border: "1px solid var(--border-strong)", color: "var(--text)" }}
               />
-              <button
-                onClick={handleAddAccount}
-                className="px-4 rounded-xl font-bold text-[13px]"
-                style={{ background: "var(--ink)", color: "var(--ink-inverse)" }}
-              >
-                Add
-              </button>
+              <label className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--text-3)" }}>
+                Made
+              </label>
+              <PillGroup
+                className="mt-1 mb-1"
+                options={[
+                  { value: "revenue", label: "Revenue" },
+                  { value: "profit", label: "Profit" },
+                ]}
+                value={newAccountMadeMode}
+                onChange={setNewAccountMadeMode}
+              />
+              <div className="text-[11px] mb-3" style={{ color: "var(--text-3)" }}>
+                {newAccountMadeMode === "profit"
+                  ? "Made nets this account's gains and losses - use this for accounts where each entry is already a P&L result, like trading."
+                  : "Made counts only this account's positive entries (deposits, gifts)."}
+              </div>
+              <label className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--text-3)" }}>
+                Spent
+              </label>
+              <PillGroup
+                className="mt-1 mb-3"
+                options={[
+                  { value: "yes", label: "Include" },
+                  { value: "no", label: "Exclude" },
+                ]}
+                value={newAccountIncludeInSpent ? "yes" : "no"}
+                onChange={(v) => setNewAccountIncludeInSpent(v === "yes")}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setAddingAccount(false);
+                    setNewAccountName("");
+                    setNewAccountMadeMode("revenue");
+                    setNewAccountIncludeInSpent(true);
+                  }}
+                  className="flex-1 py-2 rounded-lg font-bold text-[12.5px]"
+                  style={{ background: "var(--surface-2)", color: "var(--text-2)" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddAccount}
+                  className="flex-1 py-2 rounded-lg font-bold text-[12.5px]"
+                  style={{ background: "var(--ink)", color: "var(--ink-inverse)" }}
+                >
+                  Add
+                </button>
+              </div>
             </div>
           ) : (
             <button
@@ -400,6 +459,8 @@ function AccountRow({
   name,
   startingBalance,
   currency,
+  madeMode,
+  includeInSpent,
   editing,
   onEdit,
   onCancel,
@@ -410,15 +471,26 @@ function AccountRow({
   name: string;
   startingBalance: number;
   currency: Currency;
+  madeMode: "revenue" | "profit";
+  includeInSpent: boolean;
   editing: boolean;
   onEdit: () => void;
   onCancel: () => void;
-  onSave: (id: string, name: string, startingBalance: number, currency: Currency) => void;
+  onSave: (
+    id: string,
+    name: string,
+    startingBalance: number,
+    currency: Currency,
+    madeMode: "revenue" | "profit",
+    includeInSpent: boolean
+  ) => void;
   onRemove: (id: string) => void;
 }) {
   const [localName, setLocalName] = useState(name);
   const [localBalance, setLocalBalance] = useState(String(startingBalance));
   const [localCurrency, setLocalCurrency] = useState<Currency>(currency);
+  const [localMadeMode, setLocalMadeMode] = useState<"revenue" | "profit">(madeMode);
+  const [localIncludeInSpent, setLocalIncludeInSpent] = useState(includeInSpent);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   if (!editing) {
@@ -438,7 +510,14 @@ function AccountRow({
 
   function submit() {
     const parsed = Number.parseFloat(localBalance.replace(",", "."));
-    onSave(id, localName.trim() || name, Number.isFinite(parsed) ? parsed : startingBalance, localCurrency);
+    onSave(
+      id,
+      localName.trim() || name,
+      Number.isFinite(parsed) ? parsed : startingBalance,
+      localCurrency,
+      localMadeMode,
+      localIncludeInSpent
+    );
   }
 
   return (
@@ -478,6 +557,38 @@ function AccountRow({
           </button>
         ))}
       </div>
+
+      <label className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--text-3)" }}>
+        Made
+      </label>
+      <PillGroup
+        className="mt-1 mb-1"
+        options={[
+          { value: "revenue", label: "Revenue" },
+          { value: "profit", label: "Profit" },
+        ]}
+        value={localMadeMode}
+        onChange={setLocalMadeMode}
+      />
+      <div className="text-[11px] mb-3" style={{ color: "var(--text-3)" }}>
+        {localMadeMode === "profit"
+          ? "Made nets this account's gains and losses - use this for accounts where each entry is already a P&L result, like trading."
+          : "Made counts only this account's positive entries (deposits, gifts)."}
+      </div>
+
+      <label className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--text-3)" }}>
+        Spent
+      </label>
+      <PillGroup
+        className="mt-1 mb-3"
+        options={[
+          { value: "yes", label: "Include" },
+          { value: "no", label: "Exclude" },
+        ]}
+        value={localIncludeInSpent ? "yes" : "no"}
+        onChange={(v) => setLocalIncludeInSpent(v === "yes")}
+      />
+
       <div className="flex gap-2">
         <button
           onClick={onCancel}
@@ -505,6 +616,37 @@ function AccountRow({
         {confirmingRemove ? <Icon.check size={13} /> : <Icon.trash size={13} />}
         {confirmingRemove ? "Tap again to confirm" : "Remove account"}
       </button>
+    </div>
+  );
+}
+
+function PillGroup<T extends string>({
+  options,
+  value,
+  onChange,
+  className = "",
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  className?: string;
+}) {
+  return (
+    <div className={`flex rounded-lg p-0.5 gap-0.5 ${className}`} style={{ background: "var(--surface-2)" }}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className="flex-1 py-1.5 rounded-md text-[12px] font-bold"
+          style={{
+            background: value === o.value ? "var(--surface)" : "transparent",
+            color: value === o.value ? "var(--text)" : "var(--text-3)",
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }

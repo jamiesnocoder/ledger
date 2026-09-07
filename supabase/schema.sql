@@ -24,6 +24,13 @@ create table if not exists accounts (
   -- This account's own currency. Balances/transactions for it are always in
   -- this currency; only the Net Worth aggregate converts USD back to EUR.
   currency text not null default 'EUR' check (currency in ('EUR', 'USD')),
+  -- 'revenue' (default) counts only this account's positive transactions
+  -- toward Made; 'profit' nets its gains and losses - for accounts (like
+  -- trading accounts) where each entry already logs a P&L result.
+  made_mode text not null default 'revenue' check (made_mode in ('revenue', 'profit')),
+  -- Whether this account's negative, non-expense transactions show up in
+  -- Spent - off makes sense for trading-style accounts.
+  include_in_spent boolean not null default true,
   created_at timestamptz not null default now(),
   primary key (user_id, id)
 );

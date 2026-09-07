@@ -162,7 +162,16 @@ export async function updateExpenseEntry(
 
 export async function updateAccount(
   id: string,
-  patch: Partial<{ name: string; color: string; sort_order: number; archived: boolean; starting_balance: number; currency: Currency }>
+  patch: Partial<{
+    name: string;
+    color: string;
+    sort_order: number;
+    archived: boolean;
+    starting_balance: number;
+    currency: Currency;
+    made_mode: "revenue" | "profit";
+    include_in_spent: boolean;
+  }>
 ) {
   const supabase = getSupabaseBrowserClient();
   const { error } = await supabase.from("accounts").update(patch).eq("id", id);
@@ -172,16 +181,27 @@ export async function updateAccount(
 // New accounts get a random id (accounts.id is just a text primary key, not
 // tied to any fixed set) so users who don't trade can add whatever buckets
 // make sense for them (Savings, Credit Card, etc).
-export async function addAccount(name: string, sortOrder: number) {
+export async function addAccount(
+  name: string,
+  sortOrder: number,
+  options?: { madeMode?: "revenue" | "profit"; includeInSpent?: boolean }
+) {
   const supabase = getSupabaseBrowserClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not signed in");
   const id = crypto.randomUUID();
-  const { error } = await supabase
-    .from("accounts")
-    .insert({ id, user_id: user.id, name, color: "#000000", sort_order: sortOrder, starting_balance: 0 });
+  const { error } = await supabase.from("accounts").insert({
+    id,
+    user_id: user.id,
+    name,
+    color: "#000000",
+    sort_order: sortOrder,
+    starting_balance: 0,
+    made_mode: options?.madeMode ?? "revenue",
+    include_in_spent: options?.includeInSpent ?? true,
+  });
   if (error) throw error;
 }
 

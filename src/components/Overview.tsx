@@ -127,7 +127,7 @@ export function Overview({
   }));
   const spentTotal = spendByCategory.reduce((s, c) => s + c.total, 0);
 
-  const madeByKind = computeMadeByKind(transactions, sinceMs);
+  const madeByKind = computeMadeByKind(transactions, accounts, sinceMs);
   const madeSlices: DonutSlice[] = madeByKind.map((k) => ({
     id: k.kind,
     label: k.label,
@@ -191,7 +191,7 @@ export function Overview({
 
   const trendDays = daysForTimeframe(timeframe);
   const spentDailyPoints = dailySpend(expenses, trendDays);
-  const madeDailyPoints = dailyMade(transactions, trendDays);
+  const madeDailyPoints = dailyMade(transactions, accounts, trendDays);
   const trendLabels = trendBarLabels(trendDays);
 
   function toggleView(kind: PageKind) {
@@ -261,10 +261,15 @@ export function Overview({
 
   // Left: every expense (tracked or not) plus any other negative-amount
   // transaction that isn't already an expense (withdrawals, trade/investment
-  // losses, transfers out, negative adjustments).
+  // losses, transfers out, negative adjustments) - unless its account has
+  // opted out of Spent (e.g. a trading account, where a loss isn't everyday
+  // spending).
   const expenseFeed: FeedItem[] = [
     ...expenses.map(expenseToFeedItem),
-    ...transactions.filter((t) => t.amount < 0 && t.kind !== "expense").map(txnToFeedItem),
+    ...transactions
+      .filter((t) => t.amount < 0 && t.kind !== "expense")
+      .filter((t) => accounts.find((a) => a.id === t.account_id)?.include_in_spent !== false)
+      .map(txnToFeedItem),
   ]
     .sort(byDateDesc)
     .slice(0, 40);

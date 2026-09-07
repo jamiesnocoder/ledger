@@ -24,6 +24,16 @@ export interface Account {
   archived: boolean;
   starting_balance: number;
   currency: Currency;
+  // "revenue" (default) counts only this account's positive transactions
+  // toward Made - "profit" nets its gains and losses, for accounts (like
+  // trading accounts) where each entry already logs a P&L result rather
+  // than a plain deposit.
+  made_mode: "revenue" | "profit";
+  // Whether this account's negative, non-expense transactions (withdrawals,
+  // trade/investment losses, transfer-outs) show up in Spent. Off by default
+  // makes sense for trading-style accounts, where those aren't everyday
+  // spending.
+  include_in_spent: boolean;
   created_at: string;
 }
 
