@@ -17,6 +17,14 @@ export function fmtSigned(n: number, currency: Currency = "EUR") {
   return (n > 0 ? "+" : n < 0 ? "−" : "") + fmt.format(Math.abs(n));
 }
 
+// No currency symbol, rounded, "k" for thousands - for tight spaces like a
+// calendar day cell where the page's own currency is already implied.
+export function fmtCompact(n: number): string {
+  const sign = n < 0 ? "−" : "";
+  const v = Math.round(Math.abs(n));
+  return sign + (v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1).replace(/\.0$/, "")}k` : String(v));
+}
+
 export function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", {
     day: "numeric",

@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { DonutChart, type DonutSlice } from "@/components/DonutChart";
 import { LineChart } from "@/components/LineChart";
-import { BarChart } from "@/components/BarChart";
+import { CalendarView } from "@/components/CalendarView";
 import { ActivityList, ActivityRow, type FeedItem } from "@/components/ActivityList";
 import { EditEntrySheet, entryKeyFor, type EditTarget } from "@/components/EditEntrySheet";
 import {
@@ -11,12 +11,13 @@ import {
   computeHistory,
   computeMadeByKind,
   computeSpendByCategory,
-  dailyMade,
-  dailySpend,
+  cumulativeInRange,
+  isMadeEligible,
+  MADE_LABELS,
+  monthBoundsMs,
   pickableAccounts,
-  timeframeSinceMs,
   toEur,
-  type Timeframe,
+  type AmountEntry,
 } from "@/lib/compute";
 import { Icon } from "@/components/icons";
 import type { Account, AccountTransaction, Currency, Expense, ExpenseCategory } from "@/lib/types";
@@ -40,28 +41,12 @@ type PageKind = "spent" | "networth" | "made";
 const PAGE_ORDER: PageKind[] = ["spent", "networth", "made"];
 
 type NetWorthGroup = "total" | "cash" | "daytrading" | "investment";
+type ChartMode = "donut" | "trend" | "calendar";
+type PeriodMode = "month" | "all";
+type FilterablePage = "spent" | "made";
 
-function daysForTimeframe(tf: Timeframe): number {
-  if (tf === "week") return 7;
-  if (tf === "month") return 30;
-  return 90;
-}
-
-// Full labels for a 7-day window (matches the day-of-week look); for longer
-// windows only ~6 evenly spaced labels are kept so they don't overlap.
-function trendBarLabels(days: number): string[] {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const step = Math.max(1, Math.ceil(days / 6));
-  const labels: string[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const idx = days - 1 - i;
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    const show = days <= 7 || idx % step === 0;
-    labels.push(show ? (days <= 7 ? d.toLocaleDateString("en-GB", { weekday: "short" }) : String(d.getDate())) : "");
-  }
-  return labels;
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
 // Entries added the same day all share noon as their occurred_at (there's no
@@ -88,13 +73,17 @@ export function Overview({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const scrollEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [page, setPage] = useState(1); // 0 = Spent (left), 1 = Net worth (middle), 2 = Made (right)
-  const [timeframe, setTimeframe] = useState<Timeframe>("month");
   const [now] = useState(() => Date.now());
-  const [viewMode, setViewMode] = useState<Record<PageKind, "donut" | "trend">>({
+  const [viewMode, setViewMode] = useState<Record<PageKind, ChartMode>>({
     spent: "donut",
     networth: "donut",
     made: "donut",
   });
+  const [period, setPeriod] = useState<Record<FilterablePage, { mode: PeriodMode; month: Date }>>({
+    spent: { mode: "month", month: startOfMonth(new Date(now)) },
+    made: { mode: "month", month: startOfMonth(new Date(now)) },
+  });
+  const [category, setCategory] = useState<Record<FilterablePage, string>>({ spent: "all", made: "all" });
   const [netWorthGroup, setNetWorthGroup] = useState<NetWorthGroup>("total");
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
 
@@ -106,7 +95,6 @@ export function Overview({
   }, []);
 
   const { byAccount, total } = computeBalances(accounts, transactions, usdToEur);
-  const sinceMs = timeframeSinceMs(timeframe, now);
   const currencyById: Record<string, Currency> = {};
   accounts.forEach((a) => (currencyById[a.id] = a.currency));
 
@@ -119,21 +107,44 @@ export function Overview({
     value: toEur(byAccount[a.id] ?? 0, a.currency, usdToEur),
   }));
 
-  const spendByCategory = computeSpendByCategory(expenses, categories, sinceMs);
+  // --- Spent: category-filtered, period-scoped -----------------------------
+  const spentRange = period.spent.mode === "month" ? monthBoundsMs(period.spent.month) : { fromMs: undefined, toMs: Infinity };
+  const spendByCategoryAll = computeSpendByCategory(expenses, categories, spentRange.fromMs, spentRange.toMs);
+  const spentCategoryOptions = [
+    { id: "all", label: "All" },
+    ...categories.map((c) => ({ id: c.id, label: c.name })),
+    ...(expenses.some((e) => !e.category_id) ? [{ id: "uncategorized", label: "Uncategorized" }] : []),
+  ];
+  const spendByCategory =
+    category.spent === "all" ? spendByCategoryAll : spendByCategoryAll.filter((c) => (c.category?.id ?? "uncategorized") === category.spent);
   const spentSlices: DonutSlice[] = spendByCategory.map((c) => ({
     id: c.category?.id ?? "uncategorized",
     label: c.category?.name ?? "Uncategorized",
     value: c.total,
   }));
   const spentTotal = spendByCategory.reduce((s, c) => s + c.total, 0);
+  const spentEntries: AmountEntry[] = expenses
+    .filter((e) => category.spent === "all" || (e.category_id ?? "uncategorized") === category.spent)
+    .map((e) => ({ ts: new Date(e.occurred_at).getTime(), amount: e.amount }));
+  const spentCumulative = cumulativeInRange(spentEntries, spentRange.fromMs, spentRange.toMs);
 
-  const madeByKind = computeMadeByKind(transactions, accounts, sinceMs);
-  const madeSlices: DonutSlice[] = madeByKind.map((k) => ({
-    id: k.kind,
-    label: k.label,
-    value: k.total,
-  }));
+  // --- Made: kind-filtered, period-scoped -----------------------------------
+  const madeRange = period.made.mode === "month" ? monthBoundsMs(period.made.month) : { fromMs: undefined, toMs: Infinity };
+  const madeByKindAll = computeMadeByKind(transactions, accounts, madeRange.fromMs, madeRange.toMs);
+  const madeCategoryOptions = [
+    { id: "all", label: "All" },
+    ...Object.keys(MADE_LABELS)
+      .filter((k) => transactions.some((t) => t.kind === k))
+      .map((k) => ({ id: k, label: MADE_LABELS[k] })),
+  ];
+  const madeByKind = category.made === "all" ? madeByKindAll : madeByKindAll.filter((k) => k.kind === category.made);
+  const madeSlices: DonutSlice[] = madeByKind.map((k) => ({ id: k.kind, label: k.label, value: k.total }));
   const madeTotal = madeByKind.reduce((s, k) => s + k.total, 0);
+  const madeEntries: AmountEntry[] = transactions
+    .filter((t) => isMadeEligible(t, accounts))
+    .filter((t) => category.made === "all" || t.kind === category.made)
+    .map((t) => ({ ts: new Date(t.occurred_at).getTime(), amount: t.amount }));
+  const madeCumulative = cumulativeInRange(madeEntries, madeRange.fromMs, madeRange.toMs);
 
   // Net worth trend: cumulative running balance for the selected group,
   // seeded with that group's starting balance(s), always full history.
@@ -189,13 +200,24 @@ export function Overview({
     ...(accounts.some((a) => a.id === "investment") ? [{ id: "investment" as const, label: "Investing" }] : []),
   ];
 
-  const trendDays = daysForTimeframe(timeframe);
-  const spentDailyPoints = dailySpend(expenses, trendDays);
-  const madeDailyPoints = dailyMade(transactions, accounts, trendDays);
-  const trendLabels = trendBarLabels(trendDays);
+  function setMode(kind: PageKind, mode: ChartMode) {
+    setViewMode((prev) => ({ ...prev, [kind]: mode }));
+  }
 
-  function toggleView(kind: PageKind) {
-    setViewMode((prev) => ({ ...prev, [kind]: prev[kind] === "donut" ? "trend" : "donut" }));
+  // Calendar always shows one specific month, so switching to it while
+  // "All time" is selected would leave no visible month context - pull the
+  // period back to "Month" (keeping whatever month was last chosen) instead.
+  function selectMode(kind: FilterablePage, mode: ChartMode) {
+    setMode(kind, mode);
+    if (mode === "calendar" && period[kind].mode === "all") setPeriodMode(kind, "month");
+  }
+
+  function setPeriodMode(kind: FilterablePage, mode: PeriodMode) {
+    setPeriod((prev) => ({ ...prev, [kind]: { ...prev[kind], mode } }));
+  }
+
+  function setPeriodMonth(kind: FilterablePage, month: Date) {
+    setPeriod((prev) => ({ ...prev, [kind]: { ...prev[kind], month } }));
   }
 
   function goToPage(i: number) {
@@ -319,49 +341,24 @@ export function Overview({
     if (exp) setEditTarget({ kind: "expense", expense: exp });
   }
 
-  // With timeframe pills, the title gets its own centered row above them
-  // (two rows). Without pills (Net worth), that second row would just be an
-  // empty strip next to the toggle - so the title takes the pills' centered
-  // slot instead, staying centered and landing on the same row as the
-  // toggle, with no leftover gap.
-  function ControlRow({
-    title,
-    showTimeframe,
-    isTrend,
-    onToggle,
-  }: {
-    title: string;
-    showTimeframe: boolean;
-    isTrend: boolean;
-    onToggle: () => void;
-  }) {
-    const titleEl = (
-      <div className="text-center text-[11.5px] font-bold uppercase tracking-wide" style={{ color: "var(--text)" }}>
-        {title}
-      </div>
-    );
-    return (
-      <div className="w-full px-2 mb-2">
-        {showTimeframe && <div className="mb-1.5">{titleEl}</div>}
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-          <div />
-          {showTimeframe ? <TimeframePills value={timeframe} onChange={setTimeframe} /> : titleEl}
-          <div className="flex justify-end">
-            <ChartModeToggle active={isTrend} onClick={onToggle} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   function renderChartCard(kind: PageKind) {
-    const isTrend = viewMode[kind] === "trend";
+    const mode = viewMode[kind];
     return (
       <div className="rounded-2xl" style={{ background: "var(--surface)", padding: "20px 4px", boxShadow: "var(--shadow)" }}>
         {kind === "networth" && (
           <>
-            <ControlRow title="Net worth" showTimeframe={false} isTrend={isTrend} onToggle={() => toggleView("networth")} />
-            {isTrend ? (
+            <div className="w-full px-2 mb-2">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <div />
+                <div className="text-center text-[11.5px] font-bold uppercase tracking-wide" style={{ color: "var(--text)" }}>
+                  Net worth
+                </div>
+                <div className="flex justify-end">
+                  <ChartModeToggle active={mode === "trend"} onClick={() => setMode("networth", mode === "trend" ? "donut" : "trend")} />
+                </div>
+              </div>
+            </div>
+            {mode === "trend" ? (
               <div className="w-full px-2">
                 <NetWorthGroupPills value={netWorthGroup} onChange={setNetWorthGroup} groups={netWorthGroups} />
                 <LineChart points={netWorthHistory} height={200} full zeroBaseline={false} />
@@ -375,12 +372,22 @@ export function Overview({
         )}
         {kind === "spent" && (
           <>
-            <ControlRow title="Spent" showTimeframe isTrend={isTrend} onToggle={() => toggleView("spent")} />
-            {isTrend ? (
+            <ChartHeader
+              title="Spent"
+              mode={mode}
+              onModeChange={(m) => selectMode("spent", m)}
+              period={period.spent}
+              onPeriodModeChange={(m) => setPeriodMode("spent", m)}
+              onMonthChange={(d) => setPeriodMonth("spent", d)}
+            />
+            <FilterPills value={category.spent} onChange={(id) => setCategory((prev) => ({ ...prev, spent: id }))} options={spentCategoryOptions} />
+            {mode === "trend" && (
               <div className="w-full px-2">
-                <BarChart points={spentDailyPoints} labels={trendLabels} />
+                <LineChart points={spentCumulative} height={180} full />
               </div>
-            ) : (
+            )}
+            {mode === "calendar" && <CalendarView entries={spentEntries} month={period.spent.month} />}
+            {mode === "donut" && (
               <div className="w-full flex flex-col items-center">
                 <DonutChart slices={spentSlices} total={spentTotal} totalLabel="Spent" />
               </div>
@@ -389,12 +396,22 @@ export function Overview({
         )}
         {kind === "made" && (
           <>
-            <ControlRow title="Made" showTimeframe isTrend={isTrend} onToggle={() => toggleView("made")} />
-            {isTrend ? (
+            <ChartHeader
+              title="Made"
+              mode={mode}
+              onModeChange={(m) => selectMode("made", m)}
+              period={period.made}
+              onPeriodModeChange={(m) => setPeriodMode("made", m)}
+              onMonthChange={(d) => setPeriodMonth("made", d)}
+            />
+            <FilterPills value={category.made} onChange={(id) => setCategory((prev) => ({ ...prev, made: id }))} options={madeCategoryOptions} />
+            {mode === "trend" && (
               <div className="w-full px-2">
-                <LineChart points={madeDailyPoints} height={160} full />
+                <LineChart points={madeCumulative} height={180} full />
               </div>
-            ) : (
+            )}
+            {mode === "calendar" && <CalendarView entries={madeEntries} month={period.made.month} />}
+            {mode === "donut" && (
               <div className="w-full flex flex-col items-center">
                 <DonutChart slices={madeSlices} total={madeTotal} totalLabel="Made" />
               </div>
@@ -512,6 +529,161 @@ function ChartModeToggle({ active, onClick }: { active: boolean; onClick: () => 
   );
 }
 
+const CHART_MODES: { id: ChartMode; icon: keyof typeof Icon; label: string }[] = [
+  { id: "donut", icon: "pieChart", label: "Breakdown" },
+  { id: "trend", icon: "activity", label: "Trend" },
+  { id: "calendar", icon: "calendar", label: "Calendar" },
+];
+
+function ChartModeSelector({ value, onChange }: { value: ChartMode; onChange: (m: ChartMode) => void }) {
+  return (
+    <div className="flex rounded-lg p-0.5 gap-0.5 shrink-0" style={{ background: "var(--surface-2)" }}>
+      {CHART_MODES.map((m) => {
+        const IconComp = Icon[m.icon];
+        const active = value === m.id;
+        return (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => onChange(m.id)}
+            aria-label={m.label}
+            aria-pressed={active}
+            className="w-7 h-7 rounded-md flex items-center justify-center"
+            style={{ background: active ? "var(--ink)" : "transparent", color: active ? "var(--ink-inverse)" : "var(--text-2)" }}
+          >
+            <IconComp size={13} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function PeriodControl({
+  mode,
+  month,
+  onModeChange,
+  onMonthChange,
+}: {
+  mode: PeriodMode;
+  month: Date;
+  onModeChange: (m: PeriodMode) => void;
+  onMonthChange: (d: Date) => void;
+}) {
+  const monthLabel = month.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  const now = new Date();
+  const isCurrentMonth = month.getFullYear() === now.getFullYear() && month.getMonth() === now.getMonth();
+
+  function shift(delta: number) {
+    onMonthChange(new Date(month.getFullYear(), month.getMonth() + delta, 1));
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="flex rounded-lg p-0.5 gap-0.5" style={{ background: "var(--surface-2)" }}>
+        {(["month", "all"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => onModeChange(m)}
+            className="px-2.5 py-1.5 rounded-md text-[10.5px] font-bold"
+            style={{
+              background: mode === m ? "var(--surface)" : "transparent",
+              color: mode === m ? "var(--text)" : "var(--text-3)",
+            }}
+          >
+            {m === "all" ? "All time" : "Month"}
+          </button>
+        ))}
+      </div>
+      {mode === "month" && (
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => shift(-1)}
+            aria-label="Previous month"
+            className="w-6 h-6 rounded-md flex items-center justify-center"
+            style={{ color: "var(--text-2)" }}
+          >
+            <Icon.chevronLeft size={12} />
+          </button>
+          <span className="text-[10.5px] font-bold w-[52px] text-center" style={{ color: "var(--text)" }}>
+            {monthLabel}
+          </span>
+          <button
+            type="button"
+            onClick={() => !isCurrentMonth && shift(1)}
+            disabled={isCurrentMonth}
+            aria-label="Next month"
+            className="w-6 h-6 rounded-md flex items-center justify-center"
+            style={{ color: "var(--text-2)", opacity: isCurrentMonth ? 0.3 : 1 }}
+          >
+            <Icon.chevronRight size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChartHeader({
+  title,
+  mode,
+  onModeChange,
+  period,
+  onPeriodModeChange,
+  onMonthChange,
+}: {
+  title: string;
+  mode: ChartMode;
+  onModeChange: (m: ChartMode) => void;
+  period: { mode: PeriodMode; month: Date };
+  onPeriodModeChange: (m: PeriodMode) => void;
+  onMonthChange: (d: Date) => void;
+}) {
+  return (
+    <div className="w-full px-2 mb-2">
+      <div className="text-center text-[11.5px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--text)" }}>
+        {title}
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <PeriodControl mode={period.mode} month={period.month} onModeChange={onPeriodModeChange} onMonthChange={onMonthChange} />
+        <ChartModeSelector value={mode} onChange={onModeChange} />
+      </div>
+    </div>
+  );
+}
+
+function FilterPills({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  options: { id: string; label: string }[];
+}) {
+  if (options.length <= 1) return null;
+  return (
+    <div className="flex gap-1.5 overflow-x-auto px-2 pb-1 mb-2" style={{ scrollbarWidth: "none" }}>
+      {options.map((o) => {
+        const active = value === o.id;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => onChange(o.id)}
+            className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap shrink-0"
+            style={{ background: active ? "var(--ink)" : "var(--surface-2)", color: active ? "var(--ink-inverse)" : "var(--text-2)" }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function NetWorthGroupPills({
   value,
   onChange,
@@ -535,27 +707,6 @@ function NetWorthGroupPills({
           }}
         >
           {g.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function TimeframePills({ value, onChange }: { value: Timeframe; onChange: (t: Timeframe) => void }) {
-  return (
-    <div className="flex rounded-lg p-0.5 gap-0.5" style={{ background: "var(--surface-2)" }}>
-      {(["week", "month", "all"] as const).map((tf) => (
-        <button
-          key={tf}
-          type="button"
-          onClick={() => onChange(tf)}
-          className="px-3.5 py-1.5 rounded-md text-[11px] font-bold"
-          style={{
-            background: value === tf ? "var(--surface)" : "transparent",
-            color: value === tf ? "var(--text)" : "var(--text-3)",
-          }}
-        >
-          {tf === "all" ? "All time" : tf === "week" ? "Week" : "Month"}
         </button>
       ))}
     </div>

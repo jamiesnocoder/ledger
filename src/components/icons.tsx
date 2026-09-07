@@ -47,6 +47,25 @@ export const Icon = {
       <polyline points="6 9 12 15 18 9" />
     </Svg>
   ),
+  chevronRight: (p: IconProps) => (
+    <Svg {...p}>
+      <polyline points="9 18 15 12 9 6" />
+    </Svg>
+  ),
+  pieChart: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+      <path d="M22 12A10 10 0 0 0 12 2v10z" />
+    </Svg>
+  ),
+  calendar: (p: IconProps) => (
+    <Svg {...p}>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </Svg>
+  ),
   close: (p: IconProps) => (
     <Svg {...p}>
       <line x1="18" y1="6" x2="6" y2="18" />

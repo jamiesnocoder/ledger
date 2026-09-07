@@ -70,12 +70,14 @@ export interface CategorySpend {
 export function computeSpendByCategory(
   expenses: Expense[],
   categories: ExpenseCategory[],
-  sinceMs?: number
+  sinceMs?: number,
+  untilMs?: number
 ): CategorySpend[] {
   const byId = new Map(categories.map((c) => [c.id, c]));
   const totals = new Map<string, CategorySpend>();
   expenses
     .filter((e) => (sinceMs ? new Date(e.occurred_at).getTime() >= sinceMs : true))
+    .filter((e) => (untilMs !== undefined ? new Date(e.occurred_at).getTime() < untilMs : true))
     .forEach((e) => {
       const key = e.category_id ?? "__none";
       const existing = totals.get(key);
@@ -90,21 +92,8 @@ export function computeSpendByCategory(
   return Array.from(totals.values()).sort((a, b) => b.total - a.total);
 }
 
-export type Timeframe = "week" | "month" | "all";
-
-// Start-of-range cutoff (ms since epoch) for a timeframe pill, or undefined
-// for "all time" (no lower bound).
-export function timeframeSinceMs(tf: Timeframe, now: number): number | undefined {
-  if (tf === "all") return undefined;
-  if (tf === "week") return now - 7 * 86400000;
-  const d = new Date(now);
-  d.setDate(1);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-const MADE_KINDS = new Set(["cash", "gift", "trade", "investment"]);
-const MADE_LABELS: Record<string, string> = {
+export const MADE_KINDS = new Set(["cash", "gift", "trade", "investment"]);
+export const MADE_LABELS: Record<string, string> = {
   cash: "Cash",
   gift: "Gifts",
   trade: "Day Trading",
@@ -121,23 +110,28 @@ export interface KindTotal {
 // are always eligible, but an account set to "revenue" mode only counts its
 // positive transactions (a plain deposit), while "profit" mode nets gains
 // and losses together (a trading account logging each trade's P&L result).
-function countsAsMade(t: AccountTransaction, madeModeById: Record<string, string | undefined>): boolean {
+export function isMadeEligible(t: AccountTransaction, accounts: Account[]): boolean {
   if (!MADE_KINDS.has(t.kind)) return false;
-  if (madeModeById[t.account_id] === "profit") return true;
+  const acc = accounts.find((a) => a.id === t.account_id);
+  if (acc?.made_mode === "profit") return true;
   return t.amount > 0;
 }
 
 // "Money made" - deposits, gifts, and trading/investment results (netted for
-// accounts in profit mode, see countsAsMade) - excluding transfers between
+// accounts in profit mode, see isMadeEligible) - excluding transfers between
 // your own accounts and manual balance adjustments, which aren't really
 // "made" money.
-export function computeMadeByKind(txns: AccountTransaction[], accounts: Account[], sinceMs?: number): KindTotal[] {
-  const madeModeById: Record<string, string | undefined> = {};
-  accounts.forEach((a) => (madeModeById[a.id] = a.made_mode));
+export function computeMadeByKind(
+  txns: AccountTransaction[],
+  accounts: Account[],
+  sinceMs?: number,
+  untilMs?: number
+): KindTotal[] {
   const totals = new Map<string, number>();
   txns
-    .filter((t) => countsAsMade(t, madeModeById))
+    .filter((t) => isMadeEligible(t, accounts))
     .filter((t) => (sinceMs ? new Date(t.occurred_at).getTime() >= sinceMs : true))
+    .filter((t) => (untilMs !== undefined ? new Date(t.occurred_at).getTime() < untilMs : true))
     .forEach((t) => {
       totals.set(t.kind, (totals.get(t.kind) ?? 0) + t.amount);
     });
@@ -155,50 +149,35 @@ export function spendInRange(expenses: Expense[], fromMs: number, toMs: number) 
     .reduce((s, e) => s + e.amount, 0);
 }
 
-// Daily totals for the last N days (oldest first) - used by the spending
-// bar chart.
-export function dailySpend(expenses: Expense[], days: number): HistoryPoint[] {
-  const now = new Date();
-  now.setHours(23, 59, 59, 999);
-  const buckets: HistoryPoint[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    d.setHours(0, 0, 0, 0);
-    buckets.push({ ts: d.getTime(), value: 0 });
-  }
-  expenses.forEach((e) => {
-    const t = new Date(e.occurred_at).getTime();
-    const dayStart = new Date(t);
-    dayStart.setHours(0, 0, 0, 0);
-    const bucket = buckets.find((b) => b.ts === dayStart.getTime());
-    if (bucket) bucket.value += e.amount;
-  });
-  return buckets;
+export interface AmountEntry {
+  ts: number;
+  amount: number;
 }
 
-// Daily "money made" totals for the last N days (oldest first) - the same
-// shape as dailySpend, for the Made trend bar chart.
-export function dailyMade(txns: AccountTransaction[], accounts: Account[], days: number): HistoryPoint[] {
-  const madeModeById: Record<string, string | undefined> = {};
-  accounts.forEach((a) => (madeModeById[a.id] = a.made_mode));
-  const now = new Date();
-  now.setHours(23, 59, 59, 999);
-  const buckets: HistoryPoint[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    d.setHours(0, 0, 0, 0);
-    buckets.push({ ts: d.getTime(), value: 0 });
-  }
-  txns
-    .filter((t) => countsAsMade(t, madeModeById))
-    .forEach((t) => {
-      const ts = new Date(t.occurred_at).getTime();
-      const dayStart = new Date(ts);
-      dayStart.setHours(0, 0, 0, 0);
-      const bucket = buckets.find((b) => b.ts === dayStart.getTime());
-      if (bucket) bucket.value += t.amount;
-    });
-  return buckets;
+// First-of-month/first-of-next-month bounds (ms) for a given month, used to
+// scope a period both for filtering (computeSpendByCategory/computeMadeByKind)
+// and for the calendar view.
+export function monthBoundsMs(month: Date): { fromMs: number; toMs: number } {
+  return {
+    fromMs: new Date(month.getFullYear(), month.getMonth(), 1).getTime(),
+    toMs: new Date(month.getFullYear(), month.getMonth() + 1, 1).getTime(),
+  };
+}
+
+// Running total of entries within [fromMs, toMs), for the Made/Spent
+// cumulative trend line. Seeded with a zero point at fromMs (bounded range,
+// e.g. a specific month) so the line always starts at the axis crossing;
+// "all time" (fromMs undefined) has no natural zero date, so it starts at
+// the first entry instead.
+export function cumulativeInRange(entries: AmountEntry[], fromMs: number | undefined, toMs: number): HistoryPoint[] {
+  const list = entries
+    .filter((e) => (fromMs !== undefined ? e.ts >= fromMs : true) && e.ts < toMs)
+    .sort((a, b) => a.ts - b.ts);
+  const points: HistoryPoint[] = fromMs !== undefined ? [{ ts: fromMs, value: 0 }] : [];
+  let running = 0;
+  list.forEach((e) => {
+    running += e.amount;
+    points.push({ ts: e.ts, value: running });
+  });
+  return points;
 }
